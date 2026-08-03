@@ -1,0 +1,25 @@
+url: https://geopressure.org/GeoPathSampleR/
+template:
+  bootstrap: 5
+  bslib:
+    bootswatch: pulse
+    primary: "#061D4A"
+    secondary: "#E4701F"
+navbar:
+  structure:
+    left: [reference, workflow, diagnostic, news]
+  components:
+    workflow:
+      text: Workflow
+      href: articles/getting-started.html
+    diagnostic:
+      text: Diagnostic example
+      href: sampling-path-diagnostic.html
+reference:
+  - title: Path sampling
+    contents:
+      - sampling_path
+      - path_collapse
+      - path_summary
+      - sampling_path_diagnostic
+      - plot_movement

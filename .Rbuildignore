@@ -1,0 +1,14 @@
+^\.github$
+^\.Rproj\.user$
+^_pkgdown\.yml$
+^assets$
+^docs$
+^pkgdown$
+^vignettes/\.quarto$
+^vignettes/.*_files$
+^vignettes/.*\.html$
+^\.DS_Store$
+^CITATION\.cff$
+^LICENSE\.md$
+^README\.Rmd$
+^GeoTwilightR\.Rproj$

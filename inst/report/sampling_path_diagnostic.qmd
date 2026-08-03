@@ -1,0 +1,557 @@
+---
+title: "Sampling-path diagnostic report"
+params:
+  diagnostic_file: ""
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+    smooth-scroll: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(ggplot2)
+  library(glue)
+  library(knitr)
+  library(plotly)
+  library(tibble)
+  library(tidyr)
+})
+
+`%||%` <- function(x, y) if (is.null(x)) y else x
+
+payload <- readRDS(params$diagnostic_file)
+diagnostic <- payload$diagnostic
+paths <- payload$paths
+stap <- payload$stap
+map_extent <- payload$map_extent %||% diagnostic$support$map_extent
+run_params <- diagnostic$sampler_params
+tag_id <- diagnostic$tag_id %||% "Sampling path"
+n_chain <- diagnostic$n_chain
+n_iter <- diagnostic$n_iter
+ess_threshold <- 100 * n_chain
+
+callout <- function(type, title, text) {
+  cat("::: {.callout-", type, "}\n## ", title, "\n", text, "\n:::\n\n", sep = "")
+}
+finite_max <- function(x) if (any(is.finite(x))) max(x, na.rm = TRUE) else NA_real_
+support_needs_attention <- !is.null(diagnostic$support) && (
+  diagnostic$support$n_outside_likelihood > 0L ||
+    diagnostic$support$n_near_radius > 0L ||
+    diagnostic$support$n_staps_boundary_mode > 0L ||
+    diagnostic$support$n_staps_boundary_mass > 0L
+)
+
+per_stap <- diagnostic$marginal |>
+  left_join(diagnostic$per_stap, by = c("stap_id", "stap_type")) |>
+  left_join(
+    paths |>
+      group_by(.data$stap_id) |>
+      summarise(mean_lat = mean(.data$lat), .groups = "drop"),
+    by = "stap_id"
+  ) |>
+  mutate(
+    maximum_rhat = pmax(.data$lat_rhat, .data$lon_rhat, na.rm = TRUE),
+    minimum_bulk_ess = pmin(.data$lat_ess_bulk, .data$lon_ess_bulk, na.rm = TRUE),
+    minimum_tail_ess = pmin(.data$lat_ess_tail, .data$lon_ess_tail, na.rm = TRUE),
+    lat_mcse_km = 111.2 * .data$lat_mcse_mean,
+    lon_mcse_km = 111.2 * cos(.data$mean_lat * pi / 180) * .data$lon_mcse_mean,
+    maximum_mcse_km = pmax(.data$lat_mcse_km, .data$lon_mcse_km, na.rm = TRUE)
+  ) |>
+  arrange(desc(.data$maximum_rhat), desc(.data$maximum_chain_centroid_separation_km))
+
+n_bad_rhat <- sum(per_stap$maximum_rhat > 1.05, na.rm = TRUE)
+n_bad_path_rhat <- sum(diagnostic$summary_diagnostics$rhat > 1.05, na.rm = TRUE)
+n_low_bulk <- sum(per_stap$minimum_bulk_ess < ess_threshold, na.rm = TRUE)
+n_low_tail <- sum(per_stap$minimum_tail_ess < ess_threshold, na.rm = TRUE)
+worst_stap <- per_stap$stap_id[1]
+
+support_status <- if (is.null(diagnostic$support)) {
+  "Support could not be checked because these paths predate storage of sampler settings."
+} else if (isTRUE(support_needs_attention)) {
+  "Some observations reached a configured support boundary. Review them in the context of the available twilight information and route." 
+} else {
+  "No sampled location or movement approached a configured support boundary."
+}
+
+mixing_status <- if (n_bad_rhat == 0L && n_bad_path_rhat == 0L) {
+  "The chains agree according to R-hat for all sampled STAP coordinates and path-level summaries."
+} else {
+  glue("{n_bad_rhat} sampled STAPs and {n_bad_path_rhat} path-level summaries have R-hat above 1.05.")
+}
+
+precision_status <- if (n_low_bulk == 0L && n_low_tail == 0L) {
+  glue("Bulk and tail ESS reach the standard target of approximately 100 per chain ({ess_threshold} total) for every sampled STAP.")
+} else {
+  glue("{n_low_bulk} sampled STAPs fall below the bulk-ESS target and {n_low_tail} fall below the tail-ESS target of {ess_threshold}.")
+}
+
+next_action <- if (isTRUE(support_needs_attention)) {
+  "Review the affected STAP likelihood maps and moves alongside the trajectory. Change map or movement support only when those bounds appear to exclude scientifically plausible alternatives."
+} else if (isTRUE(finite_max(c(per_stap$maximum_rhat, diagnostic$summary_diagnostics$rhat)) > 1.1)) {
+  "Inspect the worst STAP traces and spatial separation. If chains remain in different geographic regions, improve sampling or initialization before adding iterations."
+} else if (n_bad_rhat > 0L || n_bad_path_rhat > 0L) {
+  "The run is close but not fully mixed. Use the half-versus-full trend to decide whether more iterations are likely to help."
+} else if (n_low_bulk > 0L || n_low_tail > 0L) {
+  "The chains agree, but a longer run is needed for more stable posterior summaries and uncertainty limits."
+} else {
+  "The sampling diagnostics are adequate. The next priority is sensitivity to movement and likelihood assumptions."
+}
+
+path_ids <- paths |>
+  distinct(.data$chain, .data$j) |>
+  arrange(.data$chain, .data$j) |>
+  slice(unique(round(seq(1, n(), length.out = min(30, n())))))
+trajectory_paths <- paths |>
+  semi_join(path_ids, by = c("chain", "j")) |>
+  arrange(.data$chain, .data$j, .data$stap_id) |>
+  mutate(path_id = interaction(.data$chain, .data$j, drop = TRUE))
+trajectory_summary <- paths |>
+  group_by(.data$stap_id) |>
+  summarise(lat = median(.data$lat), lon = median(.data$lon), .groups = "drop") |>
+  left_join(stap, by = "stap_id") |>
+  mutate(
+    stap_type = case_when(
+      is.finite(.data$known_lat) & is.finite(.data$known_lon) ~ "Known location",
+      .data$stap0 ~ "Long STAP",
+      TRUE ~ "Daily STAP"
+    ),
+    hover = glue("STAP {stap_id}<br>{stap_type}<br>{as.Date(start)} to {as.Date(end)}")
+  )
+map_outline <- if (!is.null(map_extent)) {
+  extent <- map_extent
+  tibble(
+    lon = c(extent[1], extent[2], extent[2], extent[1], extent[1]),
+    lat = c(extent[3], extent[3], extent[4], extent[4], extent[3])
+  )
+} else {
+  tibble(lon = numeric(), lat = numeric())
+}
+
+trace_paths <- paths |>
+  filter(.data$stap_id == worst_stap) |>
+  mutate(chain = factor(.data$chain))
+path_summary <- diagnostic$sample_summary |>
+  mutate(chain = factor(.data$chain))
+```
+
+# `r tag_id`
+
+## Estimated trajectory
+
+```{r}
+#| label: trajectory-map
+trajectory_plot <- plot_ly() |>
+  add_trace(
+    data = trajectory_paths, type = "scattergeo", mode = "lines",
+    lon = ~lon, lat = ~lat, split = ~path_id,
+    line = list(color = "rgba(65,105,135,0.16)", width = 1),
+    hoverinfo = "skip", showlegend = FALSE
+  ) |>
+  add_trace(
+    data = trajectory_summary, type = "scattergeo", mode = "lines",
+    lon = ~lon, lat = ~lat,
+    line = list(color = "#1A1A1A", width = 3),
+    text = ~hover, hoverinfo = "text", name = "Posterior median"
+  ) |>
+  add_trace(
+    data = filter(trajectory_summary, .data$stap_type == "Long STAP"),
+    type = "scattergeo", mode = "markers",
+    lon = ~lon, lat = ~lat, text = ~hover, hoverinfo = "text",
+    marker = list(color = "#C26D22", size = 8), name = "Long STAP"
+  ) |>
+  add_trace(
+    data = filter(trajectory_summary, .data$stap_type == "Known location"),
+    type = "scattergeo", mode = "markers",
+    lon = ~lon, lat = ~lat, text = ~hover, hoverinfo = "text",
+    marker = list(color = "#2E8B57", size = 9, symbol = "diamond"),
+    name = "Known location"
+  ) |>
+  add_trace(
+    data = map_outline, type = "scattergeo", mode = "lines",
+    lon = ~lon, lat = ~lat,
+    line = list(color = "#666666", width = 2),
+    name = "Configured map extent", hoverinfo = "skip"
+  ) |>
+  layout(
+    legend = list(orientation = "h"),
+    geo = list(
+      projection = list(type = "natural earth"),
+      fitbounds = "locations",
+      showland = TRUE, landcolor = "rgb(242,242,242)",
+      showcountries = TRUE, countrycolor = "white"
+    )
+  )
+trajectory_plot
+```
+
+::: {.callout-tip}
+## How to read this trajectory
+The dark line connects the marginal median location for each STAP. Pale lines are a deterministic subset of posterior trajectories and reveal route alternatives. Orange points are sampled long STAPs; green diamonds are fixed locations and are not assessed for MCMC convergence.
+:::
+
+## Run definition
+
+```{r}
+#| label: settings-table
+setting_labels <- c(
+  likelihood = "Likelihood map", movement_method = "Movement kernel",
+  movement_shape = "Movement shape", movement_scale = "Movement scale",
+  component_weights = "Component weights (light, movement, route)",
+  route_detour = "Route detour multiplier",
+  long_period_light_only = "Long periods sampled from light only",
+  iter = "Requested iterations", chains = "Chains", warmup = "Warmup",
+  thin = "Thinning", block_interval = "Block iteration interval",
+  thr_likelihood = "Likelihood support", thr_gs = "Maximum radius (km/day)",
+  refresh = "Progress update interval", workers = "Workers", seed = "Seed",
+  n_light_only_long_periods = "Light-only long periods",
+  n_repair_iterations = "Iterations requiring path repair",
+  n_repaired_sites = "Daily sites repaired",
+  max_repaired_sites = "Maximum sites repaired in one iteration",
+  movement_approx_eps = "Movement approximation epsilon"
+)
+setting_names <- intersect(names(setting_labels), names(run_params))
+setting_values <- vapply(setting_names, function(name) {
+  value <- run_params[[name]]
+  if (name == "thr_gs") value <- value * 24
+  if (is.null(value)) "Full / not truncated" else paste(value, collapse = ", ")
+}, character(1))
+
+run_table <- bind_rows(
+  tibble(setting = c("Saved iterations per chain", "Sampled STAPs", "Excluded known STAPs"),
+         value = as.character(c(n_iter, nrow(diagnostic$marginal), diagnostic$n_known_stap))),
+  tibble(setting = unname(setting_labels[setting_names]), value = setting_values)
+)
+knitr::kable(run_table)
+```
+
+## Computational support
+
+These diagnostics are computed after sampling, but inspect the **pre-sampling state space** fixed before the chains ran: the map extent, retained likelihood support, and maximum daily movement radius. They do not test convergence and are not pass/fail criteria. In particular, daily STAPs with little twilight information commonly place their likelihood mode or mass on the map edge; this is expected evidence of weak light information, not automatically a reason to widen the map. Likewise, a long move near the configured radius can be biologically plausible. Use these counts to decide whether the chosen bounds visibly constrain an important part of the trajectory.
+
+```{r}
+#| label: support-callout
+#| results: asis
+if (is.null(diagnostic$support)) {
+  callout("warning", "Support was not reconstructed", support_status)
+} else if (isTRUE(support_needs_attention)) {
+  callout("note", "Review computational support in context", glue(
+    "These observations are prompts for inspection, not failed diagnostics.\n\n",
+    "- **Sampled locations:** {diagnostic$support$n_outside_likelihood} of {diagnostic$support$n_locations} were outside retained likelihood support; {diagnostic$support$n_locations_at_map_boundary} of {diagnostic$support$n_locations} were on the map boundary.\n",
+    "- **STAP likelihood maps:** {diagnostic$support$n_staps_boundary_mode} STAP modes were on the map edge; {diagnostic$support$n_staps_boundary_mass} STAPs placed more than {scales::percent(diagnostic$support$map_boundary_mass_threshold)} of likelihood mass on that edge.\n",
+    "- **Moves:** {diagnostic$support$n_near_radius} of {diagnostic$support$n_moves} non-zero moves reached at least {scales::percent(diagnostic$support$boundary_fraction)} of the configured maximum radius ({round(diagnostic$support$max_radius_km)} km/day)."
+  ))
+} else {
+  callout("tip", "No observed support boundary", support_status)
+}
+```
+
+## Trace behaviour
+
+Trace plots ask whether chains explore the same range repeatedly rather than remaining in different parts of the trajectory space.
+
+::: {.callout-tip}
+## What good traces look like
+Colours represent independent chains. For bird trajectories, exact path repetition is not expected. Look for overlapping, stationary bands without persistent chain-specific levels or long directional trends.
+:::
+
+### Total trajectory length
+
+```{r}
+#| label: path-length-trace
+plot_ly(
+  path_summary, x = ~j, y = ~path_length_km, color = ~chain,
+  type = "scattergl", mode = "lines",
+  line = list(width = 1), opacity = 0.75,
+  hovertemplate = "Chain %{color}<br>Saved iteration %{x}<br>Path length %{y:.0f} km<extra></extra>"
+) |>
+  layout(xaxis = list(title = "Saved iteration"), yaxis = list(title = "Total path length (km)"), legend = list(orientation = "h"))
+```
+
+### Coordinates of the worst-mixing STAP (`r worst_stap`)
+
+```{r}
+#| label: coordinate-traces
+latitude_trace <- plot_ly(
+  trace_paths, x = ~j, y = ~lat, color = ~chain,
+  type = "scattergl", mode = "lines", line = list(width = 1), opacity = 0.8,
+  hovertemplate = "Chain %{color}<br>Saved iteration %{x}<br>Latitude %{y:.2f}<extra></extra>"
+) |>
+  layout(xaxis = list(title = NULL), yaxis = list(title = "Latitude (degrees)"), showlegend = TRUE)
+longitude_trace <- plot_ly(
+  trace_paths, x = ~j, y = ~lon, color = ~chain,
+  type = "scattergl", mode = "lines", line = list(width = 1), opacity = 0.8,
+  hovertemplate = "Chain %{color}<br>Saved iteration %{x}<br>Longitude %{y:.2f}<extra></extra>"
+) |>
+  layout(xaxis = list(title = "Saved iteration"), yaxis = list(title = "Longitude (degrees)"), showlegend = FALSE)
+subplot(latitude_trace, longitude_trace, nrows = 2, shareX = TRUE, titleY = TRUE) |>
+  layout(legend = list(orientation = "h", y = 1.08, yanchor = "bottom"), margin = list(t = 50))
+```
+
+## R-hat: agreement among chains
+
+::: {.callout-tip}
+## What R-hat measures
+For each coordinate and path summary, R-hat compares variation **within** independent chains with variation **between** them after splitting each chain in half and rank-normalising the draws. A value near 1 means the chains give compatible marginal distributions; values above 1.05 need attention. It assesses sampling agreement, not location accuracy or biological uncertainty.
+:::
+
+```{r}
+#| label: rhat-plot
+rhat_data <- per_stap |>
+  select("stap_id", "stap_type", "lat_rhat", "lon_rhat") |>
+  pivot_longer(c("lat_rhat", "lon_rhat"), names_to = "coordinate", values_to = "rhat") |>
+  mutate(coordinate = ifelse(.data$coordinate == "lat_rhat", "Latitude", "Longitude"))
+
+plot_ly(
+  rhat_data, x = ~stap_id, y = ~rhat, color = ~coordinate,
+  symbol = ~stap_type, type = "scatter", mode = "markers",
+  text = ~glue("STAP {stap_id}<br>{stap_type}<br>{coordinate}<br>R-hat {round(rhat, 3)}"),
+  hoverinfo = "text"
+) |>
+  add_lines(x = range(rhat_data$stap_id), y = c(1.05, 1.05), inherit = FALSE,
+            line = list(color = "#C26D22", dash = "dash"), name = "1.05 threshold") |>
+  layout(
+    xaxis = list(title = "STAP ID"), yaxis = list(title = "R-hat"),
+    legend = list(orientation = "h", y = 1.12, yanchor = "bottom"),
+    margin = list(t = 55)
+  )
+```
+
+```{r}
+#| label: rhat-callout
+#| results: asis
+if (isTRUE(finite_max(c(per_stap$maximum_rhat, diagnostic$summary_diagnostics$rhat)) > 1.1)) {
+  callout("important", "Chains have not mixed", mixing_status)
+} else if (n_bad_rhat > 0L || n_bad_path_rhat > 0L) {
+  callout("warning", "Some chain disagreement remains", mixing_status)
+} else {
+  callout("tip", "R-hat is satisfactory", mixing_status)
+}
+```
+
+## Effective sample size: sampling precision
+
+::: {.callout-tip}
+## What effective sample size measures
+ESS estimates how many independent draws would provide the same Monte Carlo precision as the autocorrelated saved draws. It is computed from within-chain autocorrelation and agreement across chains. **Bulk ESS** concerns typical locations and central summaries; **tail ESS** concerns uncertainty limits. The plot shows the smaller latitude/longitude value for each STAP, with a target of roughly 100 effective draws per chain.
+:::
+
+```{r}
+#| label: ess-plot
+ess_data <- per_stap |>
+  select("stap_id", "stap_type", "minimum_bulk_ess", "minimum_tail_ess") |>
+  pivot_longer(c("minimum_bulk_ess", "minimum_tail_ess"), names_to = "measure", values_to = "ess") |>
+  mutate(measure = ifelse(.data$measure == "minimum_bulk_ess", "Bulk ESS", "Tail ESS"))
+
+plot_ly(
+  ess_data, x = ~stap_id, y = ~ess, color = ~measure,
+  symbol = ~stap_type, type = "scatter", mode = "markers",
+  text = ~glue("STAP {stap_id}<br>{stap_type}<br>{measure}<br>ESS {round(ess)}"),
+  hoverinfo = "text"
+) |>
+  add_lines(x = range(ess_data$stap_id), y = c(ess_threshold, ess_threshold), inherit = FALSE,
+            line = list(color = "#C26D22", dash = "dash"), name = glue("Target: {ess_threshold}")) |>
+  layout(xaxis = list(title = "STAP ID"), yaxis = list(title = "Minimum latitude/longitude ESS"), legend = list(orientation = "h"))
+```
+
+```{r}
+#| label: ess-callout
+#| results: asis
+if (n_low_bulk > 0L || n_low_tail > 0L) {
+  callout("warning", "Monte Carlo precision is limited", precision_status)
+} else {
+  callout("tip", "Effective sample sizes are satisfactory", precision_status)
+}
+```
+
+## Monte Carlo error in location
+
+::: {.callout-tip}
+## What Monte Carlo error means for a trajectory
+The MCSE is the estimated standard error of the posterior mean location caused by using a finite, autocorrelated sample. It is computed separately for latitude and longitude from the saved chains, then converted approximately to kilometres and shown as the larger coordinate error. Compare it with the posterior location uncertainty: a small MCSE means the estimated posterior mean is numerically stable, not that the bird's location is known precisely.
+:::
+
+```{r}
+#| label: mcse-plot
+plot_ly(
+  per_stap, x = ~stap_id, y = ~maximum_mcse_km, color = ~stap_type,
+  type = "scatter", mode = "markers",
+  text = ~glue("STAP {stap_id}<br>{stap_type}<br>Maximum coordinate MCSE {round(maximum_mcse_km, 1)} km"),
+  hoverinfo = "text"
+) |>
+  layout(xaxis = list(title = "STAP ID"), yaxis = list(title = "Approximate MCSE of posterior mean (km)"), legend = list(orientation = "h"))
+```
+
+## Spatial agreement among chains
+
+::: {.callout-tip}
+## What these spatial values represent
+**Geographic separation** is the largest great-circle distance between the mean locations of any two chains at a STAP. A large value can reveal chains occupying different broad regions, but it also increases naturally when the posterior is diffuse or multimodal. **Occupancy overlap** is the mean shared probability mass of the chain-specific distributions over exact grid cells: 1 means identical occupancy and 0 means no shared cells. Fine grids and broad uncertainty can lower overlap even when chains agree geographically. Use both plots to investigate a high R-hat or visibly separated traces; neither has a universal threshold or replaces R-hat.
+:::
+
+### Geographic separation
+
+```{r}
+#| label: separation-plot
+plot_ly(
+  per_stap, x = ~stap_id, y = ~maximum_chain_centroid_separation_km,
+  color = ~stap_type, type = "scatter", mode = "markers",
+  text = ~glue("STAP {stap_id}<br>{stap_type}<br>Maximum chain separation {round(maximum_chain_centroid_separation_km)} km"),
+  hoverinfo = "text"
+) |>
+  layout(xaxis = list(title = "STAP ID"), yaxis = list(title = "Maximum chain-centroid separation (km)"), legend = list(orientation = "h"))
+```
+
+### Occupancy overlap
+
+```{r}
+#| label: overlap-plot
+plot_ly(
+  per_stap, x = ~stap_id, y = ~mean_pairwise_overlap,
+  color = ~stap_type, type = "scatter", mode = "markers",
+  text = ~glue("STAP {stap_id}<br>{stap_type}<br>Mean pairwise overlap {round(mean_pairwise_overlap, 3)}"),
+  hoverinfo = "text"
+) |>
+  layout(xaxis = list(title = "STAP ID"), yaxis = list(title = "Mean chain occupancy overlap", range = c(0, 1)), legend = list(orientation = "h"))
+```
+
+::: {.callout-tip}
+## Why add spatial diagnostics?
+On a high-resolution discrete grid, chains can visit different exact cells while occupying the same geographic region. Centroid separation expresses disagreement in kilometres. Exact-cell overlap remains useful, but it should not be treated as a universal pass/fail threshold.
+:::
+
+## Did more iterations help?
+
+::: {.callout-tip}
+## How to use the iteration trend
+The diagnostic is recomputed after 25%, 50%, 75%, and 100% of saved iterations per chain. The full run should already have R-hat at or below 1.05. A sustained downward trend while R-hat remains high suggests that a longer run is worth testing. A flat, high trend instead suggests poor mixing that needs a change to initialization or the update strategy; simply adding iterations is unlikely to solve it.
+:::
+
+```{r}
+#| label: iteration-plot
+iteration_plot <- diagnostic$iteration |>
+  select("checkpoint", "daily_max_rhat", "path_max_rhat") |>
+  pivot_longer(c("daily_max_rhat", "path_max_rhat"), names_to = "measure", values_to = "rhat") |>
+  mutate(
+    checkpoint = factor(.data$checkpoint, levels = diagnostic$iteration$checkpoint),
+    measure = recode(.data$measure, daily_max_rhat = "Worst daily STAP", path_max_rhat = "Worst path summary")
+  )
+
+plot_ly(
+  iteration_plot, x = ~checkpoint, y = ~rhat, color = ~measure,
+  group = ~measure, type = "scatter", mode = "lines+markers",
+  hovertemplate = "%{color}<br>%{x} run<br>R-hat %{y:.3f}<extra></extra>"
+) |>
+  add_lines(
+    x = levels(iteration_plot$checkpoint),
+    y = rep(1.05, length(levels(iteration_plot$checkpoint))),
+    inherit = FALSE,
+            line = list(color = "#C26D22", dash = "dash"), name = "1.05 threshold") |>
+  layout(xaxis = list(title = NULL), yaxis = list(title = "R-hat"), legend = list(orientation = "h"))
+```
+
+```{r}
+#| label: iteration-callout
+#| results: asis
+early_rhat <- diagnostic$iteration$daily_max_rhat[1]
+full_rhat <- diagnostic$iteration$daily_max_rhat[diagnostic$iteration$checkpoint == "Full"]
+if (is.finite(full_rhat) && full_rhat <= 1.05) {
+  callout("tip", "Iteration trend is satisfactory", "The worst daily-STAP R-hat is at or below 1.05 for the full saved run.")
+} else if (is.finite(early_rhat) && early_rhat - full_rhat >= 0.02) {
+  callout("warning", "A longer run may help", "The worst daily-STAP R-hat fell by at least 0.02 from the first checkpoint to the full run. Test a longer run, then confirm that R-hat reaches 1.05 or below.")
+} else {
+  callout("caution", "Do not assume more iterations are enough", "R-hat remained high without a clear improvement across checkpoints. Inspect chain-specific geographic modes, initialization, and block updates.")
+}
+```
+
+## Detailed results
+
+```{r}
+#| label: path-table
+diagnostic$summary_diagnostics |>
+  mutate(across(where(is.numeric), function(x) round(x, 2))) |>
+  knitr::kable(caption = "Path-level MCMC diagnostics")
+```
+
+```{r}
+#| label: worst-table
+per_stap |>
+  select(
+    "stap_id", "stap_type", "maximum_rhat", "minimum_bulk_ess",
+    "minimum_tail_ess", "maximum_mcse_km",
+    "maximum_chain_centroid_separation_km", "mean_pairwise_overlap"
+  ) |>
+  slice_head(n = 15) |>
+  mutate(across(where(is.numeric), function(x) round(x, 2))) |>
+  knitr::kable(caption = "STAPs ordered by the largest R-hat")
+```
+
+<details>
+<summary>Show the complete per-STAP diagnostic table</summary>
+
+```{r}
+#| label: full-table
+per_stap |>
+  select(
+    "stap_id", "stap_type", "lat_rhat", "lon_rhat", "lat_ess_bulk",
+    "lon_ess_bulk", "lat_ess_tail", "lon_ess_tail", "lat_mcse_km",
+    "lon_mcse_km", "maximum_chain_centroid_separation_km",
+    "mean_pairwise_overlap", "n_distinct_chain_modes"
+  ) |>
+  mutate(across(where(is.numeric), function(x) round(x, 3))) |>
+  knitr::kable()
+```
+
+</details>
+
+## Overall assessment
+
+```{r}
+#| label: assessment-callouts
+#| results: asis
+support_type <- if (is.null(diagnostic$support)) {
+  "warning"
+} else if (diagnostic$support$n_outside_likelihood > 0L) {
+  "caution"
+} else if (support_needs_attention) {
+  "note"
+} else {
+  "tip"
+}
+mixing_type <- if (isTRUE(finite_max(c(per_stap$maximum_rhat, diagnostic$summary_diagnostics$rhat)) > 1.1)) {
+  "caution"
+} else if (n_bad_rhat > 0L || n_bad_path_rhat > 0L) {
+  "warning"
+} else {
+  "tip"
+}
+precision_type <- if (n_low_bulk > 0L || n_low_tail > 0L) "warning" else "tip"
+callout(support_type, "Computational support", support_status)
+callout(mixing_type, "Agreement among chains", mixing_status)
+callout(precision_type, "Monte Carlo precision", precision_status)
+```
+
+```{r}
+#| label: final-callout
+#| results: asis
+if (isTRUE(support_needs_attention)) {
+  callout("caution", "Recommended next action", next_action)
+} else if (n_bad_rhat > 0L || n_bad_path_rhat > 0L || n_low_bulk > 0L || n_low_tail > 0L) {
+  callout("warning", "Recommended next action", next_action)
+} else {
+  callout("tip", "Recommended next action", next_action)
+}
+```
+
+::: {.callout-tip}
+## Final interpretation
+Convergence means that independent chains provide compatible Monte Carlo descriptions of the posterior trajectory under the chosen likelihood, movement model, grid, and computational support. It does not establish that those scientific choices are correct. Once sampling is adequate, comparing plausible movement and likelihood specifications is usually more valuable than pursuing unnecessarily precise Monte Carlo estimates.
+:::

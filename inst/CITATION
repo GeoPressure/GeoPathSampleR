@@ -1,0 +1,9 @@
+citHeader("To cite GeoPathSampleR in publications:")
+
+citEntry(
+  entry = "Manual",
+  title = "GeoPathSampleR: Posterior Sampling of Geolocator Paths",
+  author = person("Raphaël", "Nussbaumer", email = "rafnuss@gmail.com", role = c("aut", "cre")),
+  year = "2026",
+  url = "https://github.com/GeoPressure/GeoPathSampleR"
+)

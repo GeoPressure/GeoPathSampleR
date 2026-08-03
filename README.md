@@ -1,0 +1,39 @@
+
+<!-- README.md is generated from README.Rmd. Please edit this file. -->
+
+# GeoPathSampleR <img src="man/figures/logo.png" align="right" height="139"/>
+
+<!-- badges: start -->
+
+[![R-CMD-check](https://github.com/GeoPressure/GeoPathSampleR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/GeoPressure/GeoPathSampleR/actions/workflows/R-CMD-check.yaml)
+[![pkgdown](https://github.com/GeoPressure/GeoPathSampleR/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/GeoPressure/GeoPathSampleR/actions/workflows/pkgdown.yaml)
+[![Codecov](https://codecov.io/gh/GeoPressure/GeoPathSampleR/graph/badge.svg)](https://app.codecov.io/gh/GeoPressure/GeoPathSampleR)
+<!-- badges: end -->
+
+GeoPathSampleR reconstructs stationary animal trajectories from
+geolocation likelihood maps. It provides a Gibbs sampler, reusable
+prepared inputs, posterior stay summaries, and diagnostics for
+GeoPressureR tag objects.
+
+## Installation
+
+``` r
+# install.packages("pak")
+pak::pkg_install("GeoPressure/GeoPathSampleR")
+```
+
+## Core workflow
+
+Prepare a GeoPressureR tag with a likelihood map, then sample paths:
+
+``` r
+library(GeoPathSampleR)
+
+paths <- sampling_path(tag, iter = 1000, chains = 4, seed = 1)
+diagnostic <- sampling_path_diagnostic(paths, tag, report = FALSE)
+consensus <- path_summary(paths, tag$stap, by = "consensus_stay")
+```
+
+See the [getting-started
+vignette](https://geopressure.org/GeoPathSampleR/articles/getting-started.html)
+for inputs, movement settings, and interpretation.

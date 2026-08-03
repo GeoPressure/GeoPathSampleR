@@ -1,0 +1,12 @@
+.DS_Store
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+docs/
+README.html
+*.Rcheck/
+*.tar.gz
+vignettes/.quarto/
+vignettes/*_files/
+vignettes/*.html

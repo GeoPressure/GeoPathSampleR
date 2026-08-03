@@ -1,0 +1,48 @@
+Package: GeoPathSampleR
+Title: Posterior Sampling of Geolocator Paths
+Version: 0.1.0
+Authors@R:
+    person("Raphaël", "Nussbaumer", , "rafnuss@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-8185-1020"))
+Author: Raphaël Nussbaumer [aut, cre]
+Maintainer: Raphaël Nussbaumer <rafnuss@gmail.com>
+Description: Reconstruct stationary animal trajectories from geolocation
+    likelihood maps using a Gibbs sampler with movement priors. Provides
+    prepared sampler inputs, posterior path summaries, and sampling
+    diagnostics for GeoPressureR tag objects.
+License: GPL (>= 3) + file LICENSE
+URL: https://github.com/GeoPressure/GeoPathSampleR,
+    https://geopressure.org/GeoPathSampleR/
+BugReports: https://github.com/GeoPressure/GeoPathSampleR/issues
+Depends:
+    R (>= 4.1.0)
+Imports:
+    assertthat,
+    cli,
+    GeoPressureR (>= 3.6.0.9000),
+    ggplot2,
+    glue,
+    jsonlite,
+    patchwork,
+    posterior,
+    rlang,
+    tibble,
+    withr
+Suggests:
+    dplyr,
+    leaflet,
+    knitr,
+    pkgdown,
+    quarto,
+    rmarkdown,
+    rnaturalearth,
+    rnaturalearthdata,
+    testthat (>= 3.0.0)
+Remotes:
+    GeoPressure/GeoPressureR
+Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+VignetteBuilder: quarto
+Language: en-GB
+Config/roxygen2/version: 8.0.0

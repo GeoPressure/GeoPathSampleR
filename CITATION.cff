@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "To cite GeoPathSampleR in publications use:"
+type: software
+license: GPL-3.0-or-later
+title: "GeoPathSampleR: Posterior Sampling of Geolocator Paths"
+version: 0.1.0
+abstract: "Gibbs sampling and diagnostics for stationary trajectories from geolocation likelihood maps."
+authors:
+  - family-names: Nussbaumer
+    given-names: Raphaël
+    email: rafnuss@gmail.com
+    orcid: https://orcid.org/0000-0002-8185-1020
+repository-code: https://github.com/GeoPressure/GeoPathSampleR
+url: https://geopressure.org/GeoPathSampleR/
