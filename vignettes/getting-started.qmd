@@ -19,7 +19,8 @@ Figure @fig-workflow provides an overview of the steps that follow. Steps 0--3 c
 
 ```{r}
 #| label: setup
-#| collapse: true
+#| code-fold: true
+#| code-summary: "Show setup code"
 
 library(GeoPathSampleR)
 library(GeoPressureR)
@@ -217,19 +218,12 @@ Always inspect convergence and computational-support diagnostics before interpre
 
 For interactive review, generate the report with:
 
-An example of the resulting report is available on the [GeoPathSampleR pkgdown site](https://geopressure.org/GeoPathSampleR/sampling-path-diagnostic.html).
+An example of the resulting report is available on the [diagnostic example page](https://geopressure.org/GeoPathSampleR/sampling-path-diagnostic.html).
 
 ```{r}
 #| eval: false
 diagnostic <- sampling_path_diagnostic(paths, tag, report = TRUE)
 ```
-
-The same information is available as compact objects in the console:
-```{r}
-sampling_path_diagnostic(paths, tag, report = FALSE)
-```
-
-R-hat values close to 1, adequate effective sample sizes, overlapping chains, and no support warnings indicate that the run is behaving as expected. The short first run will normally be insufficient, so extend it after checking that the workflow is valid. The longer run is shown for interactive use and is excluded from the automatic vignette build:
 
 ```{r}
 #| eval: false
@@ -256,7 +250,8 @@ consensus <- path_summary(paths, tag$stap, by = "consensus_stay")
 To show both the central trajectory and posterior variability, we draw ten paths at random, calculate the posterior mean position for each stationary period with `path_summary()`, and overlay the consensus path. The random draws are deliberately shown as thin grey lines; the mean and consensus should remain visually prominent.
 
 ```{r}
-#| collapse: true
+#| code-fold: true
+#| code-summary: "Show plotting code"
 #| label: fig-path-summaries
 #| fig-cap: "Posterior trajectory summaries. Thin grey lines show ten randomly selected collapsed posterior draws. The green dashed line connects posterior mean positions for each stationary period, while the orange line shows the consensus stay/move path. The three summaries answer different questions and should not be interpreted as interchangeable estimates."
 

@@ -1,5 +1,5 @@
 
-<!-- README.md is generated from README.Rmd. Please edit this file. -->
+<!-- README.md is generated from README.Rmd. Please edit that file and use devtools::build_readme() -->
 
 # GeoPathSampleR <img src="man/figures/logo.png" align="right" height="139"/>
 
@@ -15,25 +15,23 @@ geolocation likelihood maps. It provides a Gibbs sampler, reusable
 prepared inputs, posterior stay summaries, and diagnostics for
 GeoPressureR tag objects.
 
-## Installation
+## 📦 Installation
+
+To install the latest version from GitHub:
 
 ``` r
 # install.packages("pak")
 pak::pkg_install("GeoPressure/GeoPathSampleR")
 ```
 
-## Core workflow
-
-Prepare a GeoPressureR tag with a likelihood map, then sample paths:
-
-``` r
-library(GeoPathSampleR)
-
-paths <- sampling_path(tag, iter = 1000, chains = 4, seed = 1)
-diagnostic <- sampling_path_diagnostic(paths, tag, report = FALSE)
-consensus <- path_summary(paths, tag$stap, by = "consensus_stay")
-```
+## 📘 Vignettes
 
 See the [getting-started
 vignette](https://geopressure.org/GeoPathSampleR/articles/getting-started.html)
 for inputs, movement settings, and interpretation.
+
+## 📚 Citation
+
+If you use GeoPathSampleR in your research, cite:
+
+> 
