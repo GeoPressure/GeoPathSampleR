@@ -452,7 +452,7 @@ plot_ly(
 ) |>
   add_lines(
     x = levels(iteration_plot$checkpoint),
-    y = rep(1.05, length(levels(iteration_plot$checkpoint))),
+    y = rep(1.05, nlevels(iteration_plot$checkpoint)),
     inherit = FALSE,
             line = list(color = "#C26D22", dash = "dash"), name = "1.05 threshold") |>
   layout(xaxis = list(title = NULL), yaxis = list(title = "R-hat"), legend = list(orientation = "h"))

@@ -232,7 +232,7 @@ sampling_path_diagnostic(paths, tag, report = FALSE)
 R-hat values close to 1, adequate effective sample sizes, overlapping chains, and no support warnings indicate that the run is behaving as expected. The short first run will normally be insufficient, so extend it after checking that the workflow is valid. The longer run is shown for interactive use and is excluded from the automatic vignette build:
 
 ```{r}
-# | cache = TRUE
+#| eval: false
 paths <- sampling_path(
   tag,
   iter = 1000,
