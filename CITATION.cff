@@ -4,6 +4,8 @@ type: software
 license: GPL-3.0-or-later
 title: "GeoPathSampleR: Posterior Sampling of Geolocator Paths"
 version: 0.1.0
+date-released: 2026-08-15
+doi: 10.5281/zenodo.21944194
 abstract: "Gibbs sampling and diagnostics for stationary trajectories from geolocation likelihood maps."
 authors:
   - family-names: Nussbaumer
