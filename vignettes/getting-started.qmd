@@ -168,7 +168,19 @@ The movement model implemented in `sampling_path()` combines three sources of in
 The default movement model is a Gamma speed distribution combined with a residence-dependent probability of movement.
 
 ```{r}
-movement <- eval(formals(sampling_path)$movement)
+movement <- list(
+  method = "gamma",
+  shape = 1.26,
+  scale = 10.3,
+  low_speed_fix = 0.001,
+  zero_speed_ratio = 0,
+  move_stay_parameters = list(
+    p_0 = 0.607,
+    p_inf = 0.137,
+    tau = 0.932
+  ),
+  move_stay = function(t) 0.137 + (0.607 - 0.137) * exp(-t / 0.932)
+)
 plot_movement(movement)
 ```
 
