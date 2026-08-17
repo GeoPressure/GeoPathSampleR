@@ -1,0 +1,56 @@
+%!PS-Adobe-3.0
+%%Creator: GeoPathSampleR
+%%Title: GeoPathSampleR logo
+%%BoundingBox: 0 0 1200 1200
+%%Pages: 1
+%%EndComments
+%%BeginProlog
+/hexpath {
+  newpath 600 24 moveto 1120 324 lineto 1120 876 lineto
+  600 1176 lineto 80 876 lineto 80 324 lineto closepath
+} bind def
+/centertext {
+  /txt exch def /y exch def /x exch def
+  x txt stringwidth pop 2 div sub y moveto txt show
+} bind def
+/outlinedcentertext {
+  /txt exch def /y exch def /x exch def
+  x txt stringwidth pop 2 div sub y moveto
+  txt true charpath gsave 0.98 setgray 3 setlinewidth stroke grestore fill
+} bind def
+%%EndProlog
+%%Page: 1 1
+gsave
+hexpath clip
+
+% Editable conceptual sky bands
+0.02 0.11 0.28 setrgbcolor 0 0 1200 1200 rectfill
+0.05 0.20 0.48 setrgbcolor 0 500 1200 700 rectfill
+0.15 0.21 0.40 setrgbcolor 0 380 1200 220 rectfill
+0.55 0.31 0.28 setrgbcolor 0 250 1200 130 rectfill
+0.94 0.50 0.13 setrgbcolor 0 0 1200 250 rectfill
+
+% Editable sunrise disc
+1 0.67 0.08 setrgbcolor
+newpath 600 55 270 0 360 arc fill
+grestore
+
+% Hexagon border
+0.02 setgray 16 setlinewidth 1 setlinejoin hexpath stroke
+
+% Live editable text
+0.02 setgray
+/Bodoni72 findfont 330 scalefont setfont
+600 650 (GEO) outlinedcentertext
+/SnellRoundhand findfont 178 scalefont setfont
+600 395 (path sample) outlinedcentertext
+/Bodoni72 findfont 210 scalefont setfont
+600 135 (R) outlinedcentertext
+
+% Editable bird paths
+0.02 setgray 10 setlinewidth 1 setlinecap
+newpath 777 296 moveto 801 319 825 296 curveto 849 319 873 296 curveto stroke
+newpath 884 259 moveto 904 277 924 259 curveto 944 277 964 259 curveto stroke
+
+showpage
+%%EOF
