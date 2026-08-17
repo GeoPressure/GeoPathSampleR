@@ -9,10 +9,12 @@
 [![pkgdown](https://github.com/GeoPressure/GeoPathSampleR/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/GeoPressure/GeoPathSampleR/actions/workflows/pkgdown.yaml)
 [![Codecov](https://codecov.io/gh/GeoPressure/GeoPathSampleR/graph/badge.svg)](https://app.codecov.io/gh/GeoPressure/GeoPathSampleR)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21944194.svg)](https://doi.org/10.5281/zenodo.21944194)
+[![lint](https://github.com/GeoPressure/GeoPathSampleR/actions/workflows/jarl-check.yml/badge.svg)](https://github.com/GeoPressure/GeoPathSampleR/actions/workflows/jarl-check.yml)
+[![format](https://github.com/GeoPressure/GeoPathSampleR/actions/workflows/format-check.yml/badge.svg)](https://github.com/GeoPressure/GeoPathSampleR/actions/workflows/format-check.yml)
 <!-- badges: end -->
 
-GeoPathSampleR reconstructs stationary animal trajectories from
-geolocation likelihood maps. It provides a Gibbs sampler, reusable
+GeoPathSampleR provides Bayesian reconstruction of animal trajectories
+from geolocation likelihood maps. It includes a Gibbs sampler, reusable
 prepared inputs, posterior stay summaries, and diagnostics for
 GeoPressureR tag objects.
 
@@ -35,6 +37,7 @@ for inputs, movement settings, and interpretation.
 
 If you use GeoPathSampleR in your research, cite:
 
-> Nussbaumer, R. (2026). *GeoPathSampleR: Posterior sampling of
-> geolocator paths.* Zenodo. <https://doi.org/10.5281/zenodo.21944194>.
-> Available at: <https://github.com/GeoPressure/GeoPathSampleR>
+> Nussbaumer, R. (2026). *GeoPathSampleR: Bayesian reconstruction of
+> animal trajectories from geolocation likelihood maps.* Zenodo.
+> <https://doi.org/10.5281/zenodo.21944194>. Available at:
+> <https://github.com/GeoPressure/GeoPathSampleR>

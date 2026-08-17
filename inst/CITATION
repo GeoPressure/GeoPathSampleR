@@ -2,7 +2,7 @@ citHeader("To cite GeoPathSampleR in publications:")
 
 citEntry(
   entry = "Manual",
-  title = "GeoPathSampleR: Posterior Sampling of Geolocator Paths",
+  title = "GeoPathSampleR: Bayesian reconstruction of animal trajectories from geolocation likelihood maps",
   author = person("Raphaël", "Nussbaumer", email = "rafnuss@gmail.com", role = c("aut", "cre")),
   year = "2026",
   doi = "10.5281/zenodo.21944194",
