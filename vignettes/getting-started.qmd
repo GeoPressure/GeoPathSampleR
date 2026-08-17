@@ -130,7 +130,7 @@ tag <- geolight_map(
   tag,
   twl_calib_adjust = 1,
   fitted_location_duration = 30,
-  twl_llp = \(n) 1.75 * log(n) / n,
+  twl_llp = \(n) 1.5 * log(n) / n,
   quiet = TRUE
 )
 ```
@@ -142,7 +142,7 @@ The arguments used here differ from the GeoPressureR defaults and follow the cal
 
 - `fitted_location_duration = 30` uses long stationary periods, including the non-breeding location, as fitted calibration periods.
 - `twl_calib_adjust = 1` is used instead of `1.4` because the fitted calibration periods represent a broader range of twilight errors. The influence is small, and values between 1 and 1.4 are reasonable alternatives.
-- `twl_llp = \(n) 1.75 * log(n) / n` applies the calibrated pooling weight for workflows combining long and daily stationary periods. Do not transfer this value automatically to workflows with multiple stationary-period durations defined from acceleration data.
+- `twl_llp = \(n) 1.5 * log(n) / n` applies the calibrated pooling weight for workflows combining long and daily stationary periods. Do not transfer this value automatically to workflows with multiple stationary-period durations defined from acceleration data.
 
 :::
 

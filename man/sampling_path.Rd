@@ -8,12 +8,7 @@ sampling_path(
   tag,
   iter,
   likelihood = "map_light",
-  movement = list(method = "gamma", shape = 1.412246, scale = 8.909248, low_speed_fix =
-    0.001, zero_speed_ratio = 0, move_stay_parameters = list(p_0 = 0.647893, p_inf =
-    0.1318134, tau = 0.8624705), move_stay = function(t) {
-     0.1318134 + (0.647893 -
-    0.1318134) * exp(-t/0.8624705)
- }),
+  movement = sampling_path_default_movement(),
   component_weights = c(light = 1, movement = 1, route = 1),
   route_detour = 1,
   long_period_light_only = TRUE,

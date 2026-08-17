@@ -30,7 +30,7 @@ withr::with_dir(example_dir, {
     tag,
     twl_calib_adjust = 1,
     fitted_location_duration = 30,
-    twl_llp = \(n) 1.75 * log(n) / n,
+    twl_llp = \(n) 1.5 * log(n) / n,
     quiet = TRUE
   )
   tag$map_light <- GeoPressureR::map_add_mask_water(tag$map_light)

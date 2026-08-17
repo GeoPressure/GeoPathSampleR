@@ -27,17 +27,17 @@ Plot the speed kernel and residence-dependent probability of movement for a
 \examples{
 movement <- list(
   method = "gamma",
-  shape = 1.412246,
-  scale = 8.909248,
+  shape = 1.26,
+  scale = 10.3,
   low_speed_fix = 0.001,
   zero_speed_ratio = 0,
   move_stay_parameters = list(
-    p_0 = 0.647893,
-    p_inf = 0.1318134,
-    tau = 0.8624705
+    p_0 = 0.607,
+    p_inf = 0.137,
+    tau = 0.932
   ),
-  move_stay = function(t) 0.1318134 +
-    (0.647893 - 0.1318134) * exp(-t / 0.8624705)
+  move_stay = function(t) 0.137 +
+    (0.607 - 0.137) * exp(-t / 0.932)
 )
 plot_movement(movement)
 }

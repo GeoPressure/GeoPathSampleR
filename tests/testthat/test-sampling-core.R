@@ -356,3 +356,35 @@ test_that("route weight and detour adjust the calibrated route term", {
   expect_equal(weighted_value, 2 * default_value)
   expect_gt(direct_value, default_value)
 })
+
+test_that("route support clamps unsupported covariates to its boundary", {
+  support <- list(
+    duration_log = log1p(c(1, 10)),
+    log_distance_lower = log(c(100, 100)),
+    log_distance_upper = log(c(1000, 1000))
+  )
+
+  projected <- sampling_path_route_support_projection(
+    5,
+    c(50, 500, 1500),
+    support
+  )
+
+  expect_equal(projected$duration_log, rep(log1p(5), 3))
+  expect_equal(projected$distance_log, log(c(100, 500, 1000)))
+  expect_equal(
+    sampling_path_route_support_projection(20, 500, support)$duration_log,
+    log1p(10)
+  )
+})
+
+test_that("default route model includes the direct-distance calibration support", {
+  route_model <- sampling_path_route_model()
+
+  expect_equal(route_model$intercept, 0.144588068514403)
+  expect_equal(route_model$distance_coefficient, -0.0419027867961805)
+  expect_equal(route_model$min_direct_distance_km, 300)
+  expect_length(route_model$support$duration_log, 80)
+  expect_length(route_model$support$log_distance_lower, 80)
+  expect_length(route_model$support$log_distance_upper, 80)
+})

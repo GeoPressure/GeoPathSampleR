@@ -100,7 +100,7 @@ test_that("14OI extdata completes the light-only sampling workflow", {
     tag,
     twl_calib_adjust = 1,
     fitted_location_duration = 30,
-    twl_llp = \(n) 1.75 * log(n) / n,
+    twl_llp = \(n) 1.5 * log(n) / n,
     quiet = TRUE
   )
 

@@ -98,7 +98,7 @@
 #'   tag,
 #'   twl_calib_adjust = 1,
 #'   fitted_location_duration = 30,
-#'   twl_llp = \(n) 1.75 * log(n) / n,
+#'   twl_llp = \(n) 1.5 * log(n) / n,
 #'   quiet = TRUE
 #' )
 #'
@@ -111,25 +111,27 @@
 #' )
 #' @family sampling_path
 #' @noRd
+sampling_path_default_movement <- function() {
+  list(
+    method = "gamma",
+    shape = 1.26,
+    scale = 10.3,
+    low_speed_fix = 0.001,
+    zero_speed_ratio = 0,
+    move_stay_parameters = list(
+      p_0 = 0.607,
+      p_inf = 0.137,
+      tau = 0.932
+    ),
+    move_stay = function(t) 0.137 + (0.607 - 0.137) * exp(-t / 0.932)
+  )
+}
+
 sampling_path_with_route_model <- function(
   tag,
   iter,
   likelihood = "map_light",
-  movement = list(
-    method = "gamma",
-    shape = 1.412246,
-    scale = 8.909248,
-    low_speed_fix = 0.001,
-    zero_speed_ratio = 0,
-    move_stay_parameters = list(
-      p_0 = 0.647893,
-      p_inf = 0.1318134,
-      tau = 0.8624705
-    ),
-    move_stay = function(t) {
-      0.1318134 + (0.647893 - 0.1318134) * exp(-t / 0.8624705)
-    }
-  ),
+  movement = sampling_path_default_movement(),
   component_weights = c(light = 1, movement = 1, route = 1),
   route_detour = 1,
   long_period_light_only = TRUE,
@@ -509,21 +511,7 @@ sampling_path <- function(
   tag,
   iter,
   likelihood = "map_light",
-  movement = list(
-    method = "gamma",
-    shape = 1.412246,
-    scale = 8.909248,
-    low_speed_fix = 0.001,
-    zero_speed_ratio = 0,
-    move_stay_parameters = list(
-      p_0 = 0.647893,
-      p_inf = 0.1318134,
-      tau = 0.8624705
-    ),
-    move_stay = function(t) {
-      0.1318134 + (0.647893 - 0.1318134) * exp(-t / 0.8624705)
-    }
-  ),
+  movement = sampling_path_default_movement(),
   component_weights = c(light = 1, movement = 1, route = 1),
   route_detour = 1,
   long_period_light_only = TRUE,
@@ -567,14 +555,49 @@ sampling_path <- function(
 #' @noRd
 sampling_path_route_model <- function() {
   list(
-    intercept = 0.127076604313848,
-    duration_coefficient = 0.120519227570285,
-    distance_coefficient = -0.0836208733274686,
-    duration_center = 3.36513833184645,
-    distance_center = 8.13763879220316,
+    intercept = 0.144588068514403,
+    duration_coefficient = 0.102037912198982,
+    distance_coefficient = -0.0419027867961805,
+    duration_center = 3.46947238981685,
+    distance_center = 8.14741723119363,
     positive_link_scale = 10,
-    residual_sd = 0.115013822553951,
-    min_direct_distance_km = 100
+    residual_sd = 0.143209502924251,
+    min_direct_distance_km = 300,
+    support = list(
+      duration_log = seq(0.287682072451781, 4.9074329417549, length.out = 80),
+      log_distance_lower = c(
+        5.753318, 5.753053, 5.752807, 5.752619, 5.752578, 5.752797,
+        5.753443, 5.754723, 5.756836, 5.759940, 5.764073, 5.768894,
+        5.773770, 5.777564, 5.780069, 5.781577, 5.783275, 5.786734,
+        5.793856, 5.806683, 5.827216, 5.856280, 5.893773, 5.936299,
+        5.977809, 6.016403, 6.052166, 6.087872, 6.125990, 6.167988,
+        6.211908, 6.253266, 6.287551, 6.311730, 6.321987, 6.312659,
+        6.277105, 6.211921, 6.135123, 6.070051, 6.036883, 6.043190,
+        6.083972, 6.148044, 6.215358, 6.285303, 6.363007, 6.449984,
+        6.534484, 6.603774, 6.647081, 6.661075, 6.652097, 6.631319,
+        6.618646, 6.627787, 6.670619, 6.756391, 6.872280, 6.979026,
+        7.038234, 7.043957, 7.023743, 7.010621, 7.028343, 7.079220,
+        7.146500, 7.210412, 7.257107, 7.285729, 7.299210, 7.302953,
+        7.301105, 7.296370, 7.290929, 7.285788, 7.281271, 7.277497,
+        7.274218, 7.271170
+      ),
+      log_distance_upper = c(
+        7.346925, 7.344719, 7.342504, 7.340326, 7.338481, 7.337400,
+        7.337897, 7.341262, 7.348949, 7.362718, 7.384268, 7.414074,
+        7.451652, 7.494077, 7.538168, 7.580268, 7.615121, 7.640421,
+        7.657477, 7.668735, 7.678376, 7.691317, 7.712520, 7.746768,
+        7.798040, 7.867358, 7.953698, 8.049991, 8.144663, 8.226088,
+        8.287334, 8.329148, 8.354613, 8.369661, 8.381440, 8.393156,
+        8.406029, 8.418315, 8.429724, 8.440547, 8.450866, 8.460364,
+        8.469474, 8.479248, 8.491728, 8.506961, 8.524242, 8.541974,
+        8.557475, 8.568174, 8.571681, 8.568039, 8.565716, 8.574961,
+        8.603413, 8.652879, 8.722040, 8.801741, 8.879278, 8.947533,
+        9.002325, 9.044981, 9.079035, 9.108817, 9.140880, 9.180662,
+        9.227953, 9.279113, 9.324307, 9.359527, 9.383778, 9.400360,
+        9.413164, 9.422837, 9.429357, 9.433332, 9.435469, 9.436444,
+        9.436820, 9.436948
+      )
+    )
   )
 }
 
@@ -615,6 +638,21 @@ sampling_path_run_chain <- function(
 
   nstap <- length(lk)
   n_save <- floor((iter - warmup) / thin)
+
+  # Blocks must not span a long period. Unknown long periods are drawn from
+  # light alone, and known-location periods carry a single-node likelihood, so a
+  # block containing either cannot move in any case; excluding both keeps every
+  # block inside a single route interval. Route-interval endpoints are exactly
+  # the long-period positions, so they identify the known ones too.
+  block_excluded_i <- if (is.null(route_prior)) {
+    long_period_i
+  } else {
+    unique(c(
+      long_period_i,
+      route_prior$intervals$start_i,
+      route_prior$intervals$end_i
+    ))
+  }
 
   # Initialize the path so every adjacent stap is movement-feasible before the
   # stochastic iterations start.
@@ -684,7 +722,7 @@ sampling_path_run_chain <- function(
 
       for (block_i in seq_along(block_start)) {
         block_range <- block_start[block_i]:block_end[block_i]
-        if (any(block_range %in% long_period_i)) {
+        if (any(block_range %in% block_excluded_i)) {
           next
         }
 
@@ -1372,6 +1410,25 @@ sampling_path_prepare_route_prior <- function(
   )
   route_prior$weight <- weight
   route_prior$detour <- detour
+  if (!is.null(route_prior$support)) {
+    support_names <- c(
+      "duration_log",
+      "log_distance_lower",
+      "log_distance_upper"
+    )
+    assertthat::assert_that(
+      all(support_names %in% names(route_prior$support)),
+      length(route_prior$support$duration_log) > 1L,
+      length(route_prior$support$duration_log) ==
+        length(route_prior$support$log_distance_lower),
+      length(route_prior$support$duration_log) ==
+        length(route_prior$support$log_distance_upper),
+      all(is.finite(unlist(route_prior$support))),
+      all(diff(route_prior$support$duration_log) > 0),
+      all(route_prior$support$log_distance_lower <=
+        route_prior$support$log_distance_upper)
+    )
+  }
 
   stap_row <- match(stap_ids, tag$stap$stap_id)
   stap0 <- tag$stap$stap0 %||% rep(FALSE, nrow(tag$stap))
@@ -1537,11 +1594,17 @@ sampling_path_route_log_prior <- function(
     )
     apply_prior <- direct_distance >= route_prior$min_direct_distance_km
     log_ratio <- log(pmax(route_distance / direct_distance, 1))
+    support_covariates <- sampling_path_route_support_projection(
+      interval$duration_days,
+      direct_distance,
+      route_prior$support %||% NULL
+    )
     linear_predictor <-
       route_prior$intercept +
-      route_prior$duration_coefficient * interval$duration_centered +
+      route_prior$duration_coefficient *
+        (support_covariates$duration_log - route_prior$duration_center) +
       route_prior$distance_coefficient *
-        (log(direct_distance) - route_prior$distance_center)
+        (support_covariates$distance_log - route_prior$distance_center)
     mean_log_ratio <- sampling_path_positive_linear_link(
       linear_predictor,
       route_prior$positive_link_scale
@@ -1559,6 +1622,43 @@ sampling_path_route_log_prior <- function(
   }
 
   out * (route_prior$weight %||% 1)
+}
+
+#' Project Route-Prior Covariates onto Empirical Support
+#'
+#' @noRd
+sampling_path_route_support_projection <- function(
+  duration_days,
+  direct_distance_km,
+  support
+) {
+  if (is.null(support)) {
+    return(list(
+      duration_log = rep(log1p(duration_days), length(direct_distance_km)),
+      distance_log = log(direct_distance_km)
+    ))
+  }
+
+  duration_log <- pmin(
+    pmax(log1p(duration_days), support$duration_log[1]),
+    support$duration_log[length(support$duration_log)]
+  )
+  lower <- stats::approx(
+    support$duration_log,
+    support$log_distance_lower,
+    xout = duration_log,
+    rule = 2
+  )$y
+  upper <- stats::approx(
+    support$duration_log,
+    support$log_distance_upper,
+    xout = duration_log,
+    rule = 2
+  )$y
+  list(
+    duration_log = rep(duration_log, length(direct_distance_km)),
+    distance_log = pmin(pmax(log(direct_distance_km), lower), upper)
+  )
 }
 
 #' Positive-Linear Link
