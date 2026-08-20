@@ -462,8 +462,13 @@ sampling_path_with_route_model <- function(
     hours <- floor(elapsed / 3600)
     minutes <- floor((elapsed %% 3600) / 60)
     seconds <- elapsed %% 60
+    duration <- c(
+      if (hours > 0) glue::glue("{hours} h"),
+      if (minutes > 0) glue::glue("{minutes} min"),
+      glue::glue("{round(seconds, 1)} s")
+    ) |> paste(collapse = " ")
     cli::cli_alert_success(
-      "Sampling finished in {hours} h {minutes} min {round(seconds, 1)} s."
+      "Sampling finished in {duration}."
     )
   }
 
