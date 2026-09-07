@@ -466,7 +466,8 @@ sampling_path_with_route_model <- function(
       if (hours > 0) glue::glue("{hours} h"),
       if (minutes > 0) glue::glue("{minutes} min"),
       glue::glue("{round(seconds, 1)} s")
-    ) |> paste(collapse = " ")
+    ) |>
+      paste(collapse = " ")
     cli::cli_alert_success(
       "Sampling finished in {duration}."
     )
@@ -1739,10 +1740,11 @@ sampling_path_route_log_prior <- function(
       end_idx,
       kt
     )
+    route_excess <- route_distance / direct_distance - 1
     apply_prior <-
       direct_distance >= route_prior$min_direct_distance_km &
       n_move_days > 1L &
-      route_distance > direct_distance
+      route_excess > sqrt(.Machine$double.eps)
     support_covariates <- sampling_path_route_support_projection(
       interval$duration_days,
       direct_distance,
@@ -1758,13 +1760,14 @@ sampling_path_route_log_prior <- function(
       (route_prior$detour %||% 1) * exp(log_scale),
       .Machine$double.eps
     )
-    out[apply_prior] <- out[apply_prior] +
-      stats::dgamma(
-        route_distance[apply_prior] / direct_distance[apply_prior] - 1,
-        shape = route_prior$gamma_shape,
-        scale = scale[apply_prior],
-        log = TRUE
-      )
+    log_density <- stats::dgamma(
+      route_excess[apply_prior],
+      shape = route_prior$gamma_shape,
+      scale = scale[apply_prior],
+      log = TRUE
+    )
+    log_density[!is.finite(log_density)] <- log(.Machine$double.xmin)
+    out[apply_prior] <- out[apply_prior] + log_density
   }
 
   out * (route_prior$weight %||% 1)
@@ -1805,17 +1808,6 @@ sampling_path_route_support_projection <- function(
     duration_log = rep(duration_log, length(direct_distance_km)),
     distance_log = pmin(pmax(log(direct_distance_km), lower), upper)
   )
-}
-
-#' Positive-Linear Link
-#'
-#' @return Positive numeric vector that is approximately linear above zero.
-#' @noRd
-sampling_path_positive_linear_link <- function(x, scale) {
-  out <- x
-  smooth <- scale * x <= 30
-  out[smooth] <- log1p(exp(scale * x[smooth])) / scale
-  out
 }
 
 #' Great-Circle Distance Between Grid Indices
