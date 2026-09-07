@@ -310,8 +310,8 @@ test_that("route weight and detour adjust the calibrated route term", {
     end = as.POSIXct("2026-01-02", tz = "UTC") + 0:3 * 86400,
     stap0 = c(TRUE, FALSE, FALSE, TRUE)
   )
-  path_idx <- c(1L, 2L, 3L, 4L)
-  candidate_idx <- 2L
+  path_idx <- c(1L, 3L, 2L, 4L)
+  candidate_idx <- 3L
 
   route_default <- sampling_path_prepare_route_prior(
     list(stap = stap),
@@ -354,7 +354,33 @@ test_that("route weight and detour adjust the calibrated route term", {
   )
 
   expect_equal(weighted_value, 2 * default_value)
-  expect_gt(direct_value, default_value)
+  expect_lt(direct_value, default_value)
+})
+
+test_that("route prior is neutral for a one-movement-day interval", {
+  kt <- sampling_test_lookup()
+  stap <- data.frame(
+    stap_id = 1:4,
+    start = as.POSIXct("2026-01-01", tz = "UTC") + 0:3 * 86400,
+    end = as.POSIXct("2026-01-02", tz = "UTC") + 0:3 * 86400,
+    stap0 = c(TRUE, FALSE, FALSE, TRUE)
+  )
+  route_prior <- sampling_path_prepare_route_prior(
+    list(stap = stap),
+    stap$stap_id,
+    sampling_path_route_model()
+  )
+
+  expect_equal(
+    sampling_path_route_log_prior(
+      candidate_idx = 1L,
+      path_idx = c(1L, 1L, 1L, 4L),
+      replace_i = 2L,
+      kt = kt,
+      route_prior = route_prior
+    ),
+    0
+  )
 })
 
 test_that("route support clamps unsupported covariates to its boundary", {
@@ -381,8 +407,9 @@ test_that("route support clamps unsupported covariates to its boundary", {
 test_that("default route model includes the direct-distance calibration support", {
   route_model <- sampling_path_route_model()
 
-  expect_equal(route_model$intercept, 0.144588068514403)
-  expect_equal(route_model$distance_coefficient, -0.0419027867961805)
+  expect_equal(route_model$gamma_shape, 1.218465663457861)
+  expect_equal(route_model$scale_intercept, -1.876178885741036)
+  expect_equal(route_model$distance_coefficient, -0.318136850801684)
   expect_equal(route_model$min_direct_distance_km, 300)
   expect_length(route_model$support$duration_log, 80)
   expect_length(route_model$support$log_distance_lower, 80)

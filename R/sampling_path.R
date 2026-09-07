@@ -560,13 +560,12 @@ sampling_path <- function(
 #' @noRd
 sampling_path_route_model <- function() {
   list(
-    intercept = 0.144588068514403,
-    duration_coefficient = 0.102037912198982,
-    distance_coefficient = -0.0419027867961805,
-    duration_center = 3.46947238981685,
-    distance_center = 8.14741723119363,
-    positive_link_scale = 10,
-    residual_sd = 0.143209502924251,
+    gamma_shape = 1.218465663457861,
+    scale_intercept = -1.876178885741036,
+    duration_coefficient = 0.551609979676198,
+    distance_coefficient = -0.318136850801684,
+    duration_center = 3.469634543215384,
+    distance_center = 8.148310977395051,
     min_direct_distance_km = 300,
     support = list(
       duration_log = seq(0.287682072451781, 4.9074329417549, length.out = 80),
@@ -1528,18 +1527,17 @@ sampling_path_prepare_route_prior <- function(
   }
 
   parameter_names <- c(
-    "intercept",
+    "gamma_shape",
+    "scale_intercept",
     "duration_coefficient",
     "distance_coefficient",
     "duration_center",
-    "distance_center",
-    "positive_link_scale",
-    "residual_sd"
+    "distance_center"
   )
   assertthat::assert_that(
     all(parameter_names %in% names(route_prior)),
     all(is.finite(unlist(route_prior[parameter_names]))),
-    route_prior$residual_sd > 0,
+    route_prior$gamma_shape > 0,
     is.finite(weight),
     weight > 0,
     is.finite(detour),
@@ -1700,6 +1698,11 @@ sampling_path_route_log_prior <- function(
         sum(current_edge_distance[match(changed_edge, edge_i)]),
       length(candidate_idx)
     )
+    n_move_days <- rep(
+      sum(current_edge_distance > 0) -
+        sum(current_edge_distance[match(changed_edge, edge_i)] > 0),
+      length(candidate_idx)
+    )
 
     for (edge in changed_edge) {
       from_idx <- if (edge %in% replace_i) {
@@ -1712,8 +1715,13 @@ sampling_path_route_log_prior <- function(
       } else {
         path_idx[edge + 1L]
       }
-      route_distance <- route_distance +
-        sampling_path_index_distance_km(from_idx, to_idx, kt)
+      candidate_edge_distance <- sampling_path_index_distance_km(
+        from_idx,
+        to_idx,
+        kt
+      )
+      route_distance <- route_distance + candidate_edge_distance
+      n_move_days <- n_move_days + (candidate_edge_distance > 0)
     }
 
     start_idx <- if (interval$start_i %in% replace_i) {
@@ -1731,31 +1739,30 @@ sampling_path_route_log_prior <- function(
       end_idx,
       kt
     )
-    apply_prior <- direct_distance >= route_prior$min_direct_distance_km
-    log_ratio <- log(pmax(route_distance / direct_distance, 1))
+    apply_prior <-
+      direct_distance >= route_prior$min_direct_distance_km &
+      n_move_days > 1L &
+      route_distance > direct_distance
     support_covariates <- sampling_path_route_support_projection(
       interval$duration_days,
       direct_distance,
       route_prior$support %||% NULL
     )
-    linear_predictor <-
-      route_prior$intercept +
+    log_scale <-
+      route_prior$scale_intercept +
       route_prior$duration_coefficient *
         (support_covariates$duration_log - route_prior$duration_center) +
       route_prior$distance_coefficient *
         (support_covariates$distance_log - route_prior$distance_center)
-    mean_log_ratio <- sampling_path_positive_linear_link(
-      linear_predictor,
-      route_prior$positive_link_scale
-    )
-    mean_log_ratio <- log1p(
-      (route_prior$detour %||% 1) * expm1(mean_log_ratio)
+    scale <- pmax(
+      (route_prior$detour %||% 1) * exp(log_scale),
+      .Machine$double.eps
     )
     out[apply_prior] <- out[apply_prior] +
-      stats::dnorm(
-        log_ratio[apply_prior],
-        mean = mean_log_ratio[apply_prior],
-        sd = route_prior$residual_sd,
+      stats::dgamma(
+        route_distance[apply_prior] / direct_distance[apply_prior] - 1,
+        shape = route_prior$gamma_shape,
+        scale = scale[apply_prior],
         log = TRUE
       )
   }
