@@ -488,34 +488,13 @@ sampling_path_diagnostic_render <- function(
   browse = TRUE,
   output_file = NULL
 ) {
-  if (is.null(output_file)) {
-    report_dir <- tempfile("sampling_path_diagnostic_")
-    dir.create(report_dir)
-    report_file <- file.path(report_dir, "sampling_path_diagnostic.html")
-    on.exit(unlink(report_file), add = TRUE)
-  } else {
-    report_file <- normalizePath(output_file, mustWork = FALSE)
-    dir.create(dirname(report_file), recursive = TRUE, showWarnings = FALSE)
+  quarto <- Sys.getenv("QUARTO_PATH", unset = unname(Sys.which("quarto")))
+  if (!nzchar(quarto)) {
+    cli::cli_abort(c(
+      "Quarto is required to render the sampling-path diagnostic report.",
+      "i" = "Install Quarto ({.url https://quarto.org/docs/get-started/}) or set {.envvar QUARTO_PATH}."
+    ))
   }
-  diagnostic_file <- tempfile(fileext = ".rds")
-  params_file <- tempfile(fileext = ".json")
-  saveRDS(
-    list(
-      diagnostic = diagnostic,
-      paths = paths,
-      stap = tag$stap,
-      map_extent = tag$param$tag_set_map$extent %||% NULL
-    ),
-    diagnostic_file
-  )
-  on.exit(unlink(diagnostic_file), add = TRUE)
-  on.exit(unlink(params_file), add = TRUE)
-  jsonlite::write_json(
-    list(diagnostic_file = diagnostic_file),
-    params_file,
-    auto_unbox = TRUE
-  )
-
   template <- system.file(
     "report",
     "sampling_path_diagnostic.qmd",
@@ -526,18 +505,41 @@ sampling_path_diagnostic_render <- function(
       "The GeoPathSampleR diagnostic-report template is unavailable."
     )
   }
-  render_name <- paste0("sampling_path_diagnostic_", Sys.getpid(), ".html")
-  rendered_file <- file.path(dirname(template), render_name)
-  resource_dir <- file.path(
-    dirname(template),
-    paste0(tools::file_path_sans_ext(render_name), "_files")
+
+  # Render in a private directory: the installed package directory is read-only
+  # on many systems and shared between concurrent renders.
+  render_dir <- tempfile("sampling_path_diagnostic_")
+  dir.create(render_dir)
+  on.exit(unlink(render_dir, recursive = TRUE), add = TRUE)
+  file.copy(template, file.path(render_dir, basename(template)))
+  diagnostic_file <- file.path(render_dir, "diagnostic.rds")
+  params_file <- file.path(render_dir, "params.json")
+  render_name <- "sampling_path_diagnostic.html"
+  saveRDS(
+    list(
+      diagnostic = diagnostic,
+      paths = paths,
+      stap = tag$stap,
+      map_extent = tag$param$tag_set_map$extent %||% NULL
+    ),
+    diagnostic_file
   )
-  on.exit(unlink(rendered_file), add = TRUE)
-  on.exit(unlink(resource_dir, recursive = TRUE), add = TRUE)
+  jsonlite::write_json(
+    list(
+      diagnostic_file = normalizePath(
+        diagnostic_file,
+        winslash = "/",
+        mustWork = TRUE
+      )
+    ),
+    params_file,
+    auto_unbox = TRUE
+  )
+
   render_output <- withr::with_dir(
-    dirname(template),
+    render_dir,
     system2(
-      "quarto",
+      quarto,
       c(
         "render",
         shQuote(basename(template)),
@@ -546,7 +548,7 @@ sampling_path_diagnostic_render <- function(
         "--output",
         shQuote(render_name),
         "--execute-params",
-        shQuote(params_file)
+        shQuote(basename(params_file))
       ),
       stdout = TRUE,
       stderr = TRUE
@@ -559,13 +561,25 @@ sampling_path_diagnostic_render <- function(
       "x" = paste(utils::tail(render_output, 8), collapse = "\n")
     ))
   }
-  if (!file.copy(rendered_file, report_file, overwrite = TRUE)) {
-    cli::cli_abort(
-      "Failed to open the rendered sampling-path diagnostic report."
+
+  # The report must outlive this call: browsers open it asynchronously.
+  report_file <- if (is.null(output_file)) {
+    tempfile("sampling_path_diagnostic_", fileext = ".html")
+  } else {
+    dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
+    normalizePath(output_file, mustWork = FALSE)
+  }
+  if (
+    !file.copy(
+      file.path(render_dir, render_name),
+      report_file,
+      overwrite = TRUE
     )
+  ) {
+    cli::cli_abort("Failed to save the sampling-path diagnostic report.")
   }
   if (browse) {
-    utils::browseURL(report_file)
+    utils::browseURL(normalizePath(report_file, mustWork = TRUE))
   }
 
   invisible(report_file)
