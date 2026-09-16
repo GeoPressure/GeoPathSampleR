@@ -561,198 +561,28 @@ sampling_path <- function(
 #' @noRd
 sampling_path_route_model <- function() {
   list(
-    gamma_shape = 1.218465663457861,
-    scale_intercept = -1.876178885741036,
-    duration_coefficient = 0.551609979676198,
-    distance_coefficient = -0.318136850801684,
-    duration_center = 3.469634543215384,
-    distance_center = 8.148310977395051,
+    gamma_shape = 1.22,
+    scale_intercept = -1.88,
+    duration_coefficient = 0.552,
+    distance_coefficient = -0.318,
+    duration_center = 3.47,
+    distance_center = 8.15,
     min_direct_distance_km = 300,
     support = list(
-      duration_log = seq(0.287682072451781, 4.9074329417549, length.out = 80),
+      duration_log = seq(0.731, 4.907, length.out = 16),
       log_distance_lower = c(
-        5.753318,
-        5.753053,
-        5.752807,
-        5.752619,
-        5.752578,
-        5.752797,
-        5.753443,
-        5.754723,
-        5.756836,
-        5.759940,
-        5.764073,
-        5.768894,
-        5.773770,
-        5.777564,
-        5.780069,
-        5.781577,
-        5.783275,
-        5.786734,
-        5.793856,
-        5.806683,
-        5.827216,
-        5.856280,
-        5.893773,
-        5.936299,
-        5.977809,
-        6.016403,
-        6.052166,
-        6.087872,
-        6.125990,
-        6.167988,
-        6.211908,
-        6.253266,
-        6.287551,
-        6.311730,
-        6.321987,
-        6.312659,
-        6.277105,
-        6.211921,
-        6.135123,
-        6.070051,
-        6.036883,
-        6.043190,
-        6.083972,
-        6.148044,
-        6.215358,
-        6.285303,
-        6.363007,
-        6.449984,
-        6.534484,
-        6.603774,
-        6.647081,
-        6.661075,
-        6.652097,
-        6.631319,
-        6.618646,
-        6.627787,
-        6.670619,
-        6.756391,
-        6.872280,
-        6.979026,
-        7.038234,
-        7.043957,
-        7.023743,
-        7.010621,
-        7.028343,
-        7.079220,
-        7.146500,
-        7.210412,
-        7.257107,
-        7.285729,
-        7.299210,
-        7.302953,
-        7.301105,
-        7.296370,
-        7.290929,
-        7.285788,
-        7.281271,
-        7.277497,
-        7.274218,
-        7.271170
+        5.749, 5.777, 5.786, 5.887, 6.064, 6.272, 6.359, 6.040,
+        6.266, 6.658, 6.723, 7.180, 7.109, 7.287, 7.285, 7.273
       ),
       log_distance_upper = c(
-        7.346925,
-        7.344719,
-        7.342504,
-        7.340326,
-        7.338481,
-        7.337400,
-        7.337897,
-        7.341262,
-        7.348949,
-        7.362718,
-        7.384268,
-        7.414074,
-        7.451652,
-        7.494077,
-        7.538168,
-        7.580268,
-        7.615121,
-        7.640421,
-        7.657477,
-        7.668735,
-        7.678376,
-        7.691317,
-        7.712520,
-        7.746768,
-        7.798040,
-        7.867358,
-        7.953698,
-        8.049991,
-        8.144663,
-        8.226088,
-        8.287334,
-        8.329148,
-        8.354613,
-        8.369661,
-        8.381440,
-        8.393156,
-        8.406029,
-        8.418315,
-        8.429724,
-        8.440547,
-        8.450866,
-        8.460364,
-        8.469474,
-        8.479248,
-        8.491728,
-        8.506961,
-        8.524242,
-        8.541974,
-        8.557475,
-        8.568174,
-        8.571681,
-        8.568039,
-        8.565716,
-        8.574961,
-        8.603413,
-        8.652879,
-        8.722040,
-        8.801741,
-        8.879278,
-        8.947533,
-        9.002325,
-        9.044981,
-        9.079035,
-        9.108817,
-        9.140880,
-        9.180662,
-        9.227953,
-        9.279113,
-        9.324307,
-        9.359527,
-        9.383778,
-        9.400360,
-        9.413164,
-        9.422837,
-        9.429357,
-        9.433332,
-        9.435469,
-        9.436444,
-        9.436820,
-        9.436948
+        7.315, 7.448, 7.634, 7.696, 8.028, 8.380, 8.417, 8.437,
+        8.513, 8.558, 8.674, 9.022, 9.143, 9.343, 9.419, 9.440
       )
     )
   )
 }
 
-#' Run One Sampling Chain
-#'
-#' @description
-#' Internal worker used by [sampling_path()] to initialize one chain, run the
-#' Gibbs iterations, and return the saved sampled indices.
-#'
-#' @param chain_id integer chain identifier.
-#' @param lk list of prepared per-stap likelihood objects.
-#' @param kt prepared transition lookup object.
-#' @inheritParams sampling_path
-#' @param progress_fn optional progress callback for sequential runs.
-#' @param seed_i optional vector of chain seeds.
-#'
-#' @return Integer matrix of sampled path indices, one row per saved draw.
-#' @noRd
+#' Prepare Span-Level Route Prior
 sampling_path_run_chain <- function(
   chain_id,
   lk,
@@ -1512,7 +1342,7 @@ sampling_path_weight_log_prob <- function(log_prob, weight) {
   out
 }
 
-#' Prepare Span-Level Route Prior
+
 #'
 #' @return A route-prior list with sampler row indices, or `NULL`.
 #' @noRd
@@ -1740,36 +1570,38 @@ sampling_path_route_log_prior <- function(
       end_idx,
       kt
     )
-    route_excess <- route_distance / direct_distance - 1
     apply_prior <-
+      is.finite(route_distance) &
+      is.finite(direct_distance) &
       direct_distance >= route_prior$min_direct_distance_km &
-      n_move_days > 1L &
-      route_excess > sqrt(.Machine$double.eps)
+      n_move_days > 1L
+    route_ratio <- pmax(route_distance / direct_distance, 1)
     support_covariates <- sampling_path_route_support_projection(
       interval$duration_days,
       direct_distance,
       route_prior$support %||% NULL
     )
-    log_scale <-
+    linear_predictor <-
       route_prior$scale_intercept +
       route_prior$duration_coefficient *
         (support_covariates$duration_log - route_prior$duration_center) +
       route_prior$distance_coefficient *
         (support_covariates$distance_log - route_prior$distance_center)
-    scale <- pmax(
-      (route_prior$detour %||% 1) * exp(log_scale),
-      .Machine$double.eps
-    )
     log_density <- stats::dgamma(
-      route_excess[apply_prior],
+      route_ratio - 1,
       shape = route_prior$gamma_shape,
-      scale = scale[apply_prior],
+      scale = pmax(
+        (route_prior$detour %||% 1) * exp(linear_predictor),
+        .Machine$double.eps
+      ),
       log = TRUE
     )
+    log_density <- rep_len(log_density, length(route_ratio))
     log_density[!is.finite(log_density)] <- log(.Machine$double.xmin)
-    out[apply_prior] <- out[apply_prior] + log_density
+    out[apply_prior] <- out[apply_prior] + log_density[apply_prior]
   }
 
+  out[!is.finite(out)] <- 0
   out * (route_prior$weight %||% 1)
 }
 

@@ -383,6 +383,41 @@ test_that("route prior is neutral for a one-movement-day interval", {
   )
 })
 
+test_that("Gamma route prior agrees between vector and scalar evaluation", {
+  kt <- sampling_test_lookup()
+  stap <- data.frame(
+    stap_id = 1:4,
+    start = as.POSIXct("2026-01-01", tz = "UTC") + 0:3 * 86400,
+    end = as.POSIXct("2026-01-02", tz = "UTC") + 0:3 * 86400,
+    stap0 = c(TRUE, FALSE, FALSE, TRUE)
+  )
+  route_prior <- sampling_path_prepare_route_prior(
+    list(stap = stap),
+    stap$stap_id,
+    sampling_path_route_model()
+  )
+  vector_score <- sampling_path_route_log_prior(
+    c(2L, 4L),
+    c(1L, 2L, 3L, 4L),
+    2L,
+    kt,
+    route_prior
+  )
+  scalar_score <- vapply(
+    c(2L, 4L),
+    sampling_path_route_log_prior,
+    numeric(1),
+    path_idx = c(1L, 2L, 3L, 4L),
+    replace_i = 2L,
+    kt = kt,
+    route_prior = route_prior
+  )
+
+  expect_true(all(is.finite(vector_score)))
+  expect_equal(vector_score, scalar_score)
+})
+
+
 test_that("route support clamps unsupported covariates to its boundary", {
   support <- list(
     duration_log = log1p(c(1, 10)),
@@ -404,14 +439,16 @@ test_that("route support clamps unsupported covariates to its boundary", {
   )
 })
 
-test_that("default route model includes the direct-distance calibration support", {
+test_that("default route model uses a compact direct-distance calibration support", {
   route_model <- sampling_path_route_model()
 
-  expect_equal(route_model$gamma_shape, 1.218465663457861)
-  expect_equal(route_model$scale_intercept, -1.876178885741036)
-  expect_equal(route_model$distance_coefficient, -0.318136850801684)
+  expect_equal(route_model$gamma_shape, 1.22)
+  expect_equal(route_model$distance_coefficient, -0.318)
   expect_equal(route_model$min_direct_distance_km, 300)
-  expect_length(route_model$support$duration_log, 80)
-  expect_length(route_model$support$log_distance_lower, 80)
-  expect_length(route_model$support$log_distance_upper, 80)
+  expect_equal(
+    route_model$support$duration_log,
+    seq(0.731, 4.907, length.out = 16)
+  )
+  expect_length(route_model$support$log_distance_lower, 16)
+  expect_length(route_model$support$log_distance_upper, 16)
 })
