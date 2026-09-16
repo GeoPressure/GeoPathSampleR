@@ -570,10 +570,12 @@ sampling_path_route_model <- function() {
     min_direct_distance_km = 300,
     support = list(
       duration_log = seq(0.731, 4.907, length.out = 16),
+      # fmt: skip
       log_distance_lower = c(
         5.749, 5.777, 5.786, 5.887, 6.064, 6.272, 6.359, 6.040,
         6.266, 6.658, 6.723, 7.180, 7.109, 7.287, 7.285, 7.273
       ),
+      # fmt: skip
       log_distance_upper = c(
         7.315, 7.448, 7.634, 7.696, 8.028, 8.380, 8.417, 8.437,
         8.513, 8.558, 8.674, 9.022, 9.143, 9.343, 9.419, 9.440
