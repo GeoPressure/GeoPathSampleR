@@ -1,9 +1,14 @@
 #' Summarise an ensemble of paths
 #'
-#' Compute either one posterior location per stationary period or one path
-#' using the consensus stay/move structure across the ensemble. The function
-#' accepts both [sampling_path()] output and simulation paths with `j` but no
-#' `chain` column.
+#' Summarise an ensemble of draws into a single path. With `by = "stap"`, the
+#' positions of all draws are summarised separately for each stationary period.
+#' With `by = "consensus_stay"`, the move probability of each boundary between
+#' consecutive periods is the proportion of draws whose grid cell changes
+#' there; boundaries above `move_threshold` split the track into consensus
+#' stays, and positions are summarised over all draws and periods of each
+#' stay. The function accepts both [sampling_path()] output and simulation
+#' paths with `j` but no `chain` column. Use [path_collapse()] to keep each
+#' draw instead.
 #'
 #' @param paths A path data frame containing `stap_id`, `ind`, `lat`, and
 #'   `lon`, and optionally `j`, `chain`, `start`, and `end`.

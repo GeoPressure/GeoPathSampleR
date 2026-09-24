@@ -2,7 +2,9 @@
 #'
 #' Summarise each realised path by merging consecutive stationary periods that
 #' were assigned to the same grid cell. Paths are identified by `j` and, when
-#' present, `chain`.
+#' present, `chain`. Each draw is collapsed separately, so the output keeps
+#' one stay/move sequence per draw and all posterior variability; use
+#' [path_summary()] to summarise across draws.
 #'
 #' @param paths A path data frame containing `stap_id`, `ind`, `lat`, and
 #'   `lon`, and optionally `j`, `chain`, `start`, and `end`.

@@ -13,10 +13,13 @@
 [![format](https://github.com/GeoPressure/GeoPathSampleR/actions/workflows/format-check.yml/badge.svg)](https://github.com/GeoPressure/GeoPathSampleR/actions/workflows/format-check.yml)
 <!-- badges: end -->
 
-GeoPathSampleR provides Bayesian reconstruction of animal trajectories
-from geolocation likelihood maps. It includes a Gibbs sampler, reusable
-prepared inputs, posterior stay summaries, and diagnostics for
-GeoPressureR tag objects.
+GeoPathSampleR reconstructs bird migration trajectories from
+stationary-period likelihood maps built with GeoPressureR. Its Gibbs
+sampler combines residence-dependent departure, a ground-speed
+distribution conditional on movement, and a prior on cumulative route
+distance between long periods. Unknown long-period locations can be
+sampled from light evidence alone. The package also provides posterior
+stay summaries and sampling diagnostics.
 
 ## 📦 Installation
 
@@ -35,9 +38,16 @@ for inputs, movement settings, and interpretation.
 
 ## 📚 Citation
 
-If you use GeoPathSampleR in your research, cite:
+For the software, cite:
 
-> Nussbaumer, R. (2026). *GeoPathSampleR: Bayesian reconstruction of
-> animal trajectories from geolocation likelihood maps.* Zenodo.
-> <https://doi.org/10.5281/zenodo.21944194>. Available at:
-> <https://github.com/GeoPressure/GeoPathSampleR>
+> Nussbaumer, R. (2026). *GeoPathSampleR: Posterior Sampling of
+> Geolocator Paths.* Zenodo. <https://doi.org/10.5281/zenodo.21944194>.
+> Available at: <https://github.com/GeoPressure/GeoPathSampleR>
+
+The methods and validation are described in the following submitted
+manuscript (citation details will be updated after publication):
+
+> Nussbaumer, R., Gravey, M., Wong, J. B. & Benoit, L. (2026).
+> Reconstructing bird migration trajectories from light: inspectable
+> likelihoods and biologically informed movement priors. Manuscript
+> submitted.

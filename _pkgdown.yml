@@ -19,6 +19,7 @@ reference:
   - title: Path sampling
     contents:
       - sampling_path
+      - sampling_path_default_movement
       - path_collapse
       - path_summary
       - sampling_path_diagnostic

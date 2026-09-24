@@ -1,15 +1,16 @@
 Package: GeoPathSampleR
-Title: Bayesian Reconstruction of Animal Trajectories
-Version: 0.1.0
+Title: Posterior Sampling of Geolocator Paths
+Version: 0.1.0.9000
 Authors@R:
     person("Raphaël", "Nussbaumer", , "rafnuss@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-8185-1020"))
 Author: Raphaël Nussbaumer [aut, cre]
 Maintainer: Raphaël Nussbaumer <rafnuss@gmail.com>
-Description: Bayesian reconstruction of animal trajectories from geolocation
-    likelihood maps using a Gibbs sampler with movement priors. Provides
-    prepared sampler inputs, posterior path summaries, and sampling
-    diagnostics for GeoPressureR tag objects.
+Description: Reconstructs bird migration trajectories from stationary-period
+    likelihood maps built with GeoPressureR. A Gibbs sampler combines
+    residence-dependent departure, a ground-speed distribution conditional on
+    movement, and a prior on cumulative route distance between long periods.
+    Provides posterior stay summaries and sampling diagnostics.
 License: GPL (>= 3) + file LICENSE
 URL: https://github.com/GeoPressure/GeoPathSampleR,
     https://geopressure.org/GeoPathSampleR/
@@ -33,11 +34,14 @@ Suggests:
     leaflet,
     knitr,
     pkgdown,
+    plotly,
     quarto,
     rmarkdown,
     rnaturalearth,
     rnaturalearthdata,
-    testthat (>= 3.0.0)
+    scales,
+    testthat (>= 3.0.0),
+    tidyr
 Remotes:
     GeoPressure/GeoPressureR@dev
 Config/testthat/edition: 3

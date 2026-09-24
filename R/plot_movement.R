@@ -3,7 +3,8 @@
 #' Plot the speed kernel and residence-dependent probability of movement for a
 #' `sampling_path()` movement specification.
 #'
-#' @param movement movement list passed to `sampling_path()`.
+#' @param movement movement list passed to `sampling_path()`, such as
+#'   [sampling_path_default_movement()].
 #' @param speed speed values in km/h used to evaluate the movement kernel.
 #' @param stay_duration residence durations in days used to evaluate
 #'   `movement$move_stay`.
@@ -13,21 +14,7 @@
 #'   move/stay panel marks those parameters for the exponential-decay-to-plateau
 #'   model.
 #' @examples
-#' movement <- list(
-#'   method = "gamma",
-#'   shape = 1.26,
-#'   scale = 10.3,
-#'   low_speed_fix = 0.001,
-#'   zero_speed_ratio = 0,
-#'   move_stay_parameters = list(
-#'     p_0 = 0.607,
-#'     p_inf = 0.137,
-#'     tau = 0.932
-#'   ),
-#'   move_stay = function(t) 0.137 +
-#'     (0.607 - 0.137) * exp(-t / 0.932)
-#' )
-#' plot_movement(movement)
+#' plot_movement(sampling_path_default_movement())
 #' @import patchwork
 #' @importFrom rlang .data
 #' @family sampling_path

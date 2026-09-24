@@ -2,11 +2,11 @@ cff-version: 1.2.0
 message: "To cite GeoPathSampleR in publications use:"
 type: software
 license: GPL-3.0-or-later
-title: "GeoPathSampleR: Bayesian reconstruction of animal trajectories from geolocation likelihood maps"
+title: "GeoPathSampleR: Posterior Sampling of Geolocator Paths"
 version: 0.1.0
 date-released: 2026-08-15
 doi: 10.5281/zenodo.21944194
-abstract: "Bayesian reconstruction of animal trajectories from geolocation likelihood maps."
+abstract: "Reconstructs bird migration trajectories from stationary-period likelihood maps built with GeoPressureR. A Gibbs sampler combines residence-dependent departure, a ground-speed distribution conditional on movement, and a prior on cumulative route distance between long periods. Provides posterior stay summaries and sampling diagnostics."
 authors:
   - family-names: Nussbaumer
     given-names: Raphaël

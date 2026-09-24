@@ -36,10 +36,15 @@ A data frame with one row per requested summary unit and columns
 probabilities at the start and end boundaries.
 }
 \description{
-Compute either one posterior location per stationary period or one path
-using the consensus stay/move structure across the ensemble. The function
-accepts both \code{\link[=sampling_path]{sampling_path()}} output and simulation paths with \code{j} but no
-\code{chain} column.
+Summarise an ensemble of draws into a single path. With \code{by = "stap"}, the
+positions of all draws are summarised separately for each stationary period.
+With \code{by = "consensus_stay"}, the move probability of each boundary between
+consecutive periods is the proportion of draws whose grid cell changes
+there; boundaries above \code{move_threshold} split the track into consensus
+stays, and positions are summarised over all draws and periods of each
+stay. The function accepts both \code{\link[=sampling_path]{sampling_path()}} output and simulation
+paths with \code{j} but no \code{chain} column. Use \code{\link[=path_collapse]{path_collapse()}} to keep each
+draw instead.
 }
 \seealso{
 Other path:

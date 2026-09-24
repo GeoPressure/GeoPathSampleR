@@ -11,9 +11,9 @@ execute:
 
 This vignette uses a light-only example tag bundled with GeoPathSampleR. It shows the complete workflow from raw geolocator data to sampled paths. The example is intentionally short and uses coarse settings so that it can be run while learning the workflow; it is not intended as a scientific analysis.
 
-Figure @fig-workflow provides an overview of the steps that follow. Steps 0--3 cover the preparation of the likelihood map of light implemented in GeoPressureR and which is more extensively documented in the [GeoPressureManual](https://geopressure.org/GeoPressureManual/). We focus the explanation around key difference and provides links to the relevant section at the start of each subsection. Step 4 covers the sampling of the movement-model implemented in GeoPathSampleR.
+@fig-workflow shows the two parts of the workflow. Part I uses [GeoPressureR](https://geopressure.org/GeoPressureR/) to turn curated twilights into stationary-period likelihood maps, with [GeoLightViz](https://geopressure.org/GeoPressureManual/geolightviz.html) supporting interactive review. Part II uses GeoPathSampleR to combine those maps with movement priors and sample posterior trajectories. The sections below follow this order; the [Light map chapter of the GeoPressureManual](https://geopressure.org/GeoPressureManual/light-map.html) documents Part I in more detail.
 
-![GeoTwilight workflow. Steps 0--3 prepare, label, calibrate, and constrain the light likelihoods; Step 4 samples posterior trajectories with GeoPathSampleR. The subsection headings below follow this workflow.](figures/figure_1.png){#fig-workflow width="95%"}
+![The two-part workflow. Part I constructs inspectable stationary-period likelihood maps from curated twilight observations using GeoPressureR and GeoLightViz. Part II combines these maps with movement priors in GeoPathSampleR to sample posterior trajectories.](figures/figure_1.png){#fig-workflow width="95%"}
 
 ## Getting ready
 
@@ -93,6 +93,13 @@ tag <- tag_stap_daily(
 )
 ```
 
+::: {.callout-tip}
+## Revising long periods
+
+After `tag_stap_daily()`, `tag$stap` contains the daily periods as well as the long periods. To revise the long periods in GeoLightViz, start again with `tag_create()`, `twilight_create()`, and `twilight_label_read()` before opening `geolightviz(tag)`. Save the revised `data/stap-label/{id}.csv`, then rerun `tag_stap_daily()` and the following steps.
+
+:::
+
 ### Define map
 
 [Defining a map](https://geopressure.org/GeoPressureManual/pressure-map.html#define-geographical-and-temporal-parameters-of-the-map) sets the spatial extent and grid resolution used by the likelihood maps. This step comes after stationary periods have been defined because the map uses them as its temporal dimension. The example does not contain known coordinates, so calibration is fitted automatically from the long stationary periods.
@@ -136,7 +143,7 @@ tag <- geolight_map(
 ```
 
 
-::: {.callout-info}
+::: {.callout-note}
 
 The arguments used here differ from the GeoPressureR defaults and follow the calibration described in the GeoTwilight analysis (see the relevant appendix):
 
@@ -145,6 +152,14 @@ The arguments used here differ from the GeoPressureR defaults and follow the cal
 - `twl_llp = \(n) 1.5 * log(n) / n` applies the calibrated pooling weight for workflows combining long and daily stationary periods. Do not transfer this value automatically to workflows with multiple stationary-period durations defined from acceleration data.
 
 :::
+
+### Check the twilight calibration
+
+The calibration describes the distribution of twilight errors, expressed as solar zenith angles, used to build every likelihood map. Inspect it before continuing: the histogram shows the zenith angles of the calibration twilights, coloured by calibration period (here all fitted from long periods), and the black curve shows the fitted distribution used by the likelihood. A calibration period whose histogram departs strongly from the others can indicate mislabelled twilights or a period that is not stationary.
+
+```{r}
+plot_twl_calib(tag)
+```
 
 ### Add the water mask
 For landbird, a water mask removes cells from the set of locations that can be sampled.
@@ -159,13 +174,21 @@ plot(tag, type = "map_light")
 ## Sampling trajectories
 
 The movement model implemented in `sampling_path()` combines three sources of information to define the trajectory:
+
 - The light likelihood describes where each stationary period could be located. 
 - The movement model describes plausible speeds and the probability of departing after a given residence time. 
 - The route-length prior provides information about the expected detour of long intervals between stationary periods.
 
 ### Defining parameters
 
-The default movement model is a Gamma speed distribution combined with a residence-dependent probability of movement.
+#### Movement model
+
+The movement model defines the daily transition between consecutive stationary periods. It has two parts:
+
+- A ground-speed kernel (`method`, `shape`, `scale`, `low_speed_fix`, `zero_speed_ratio`), evaluated with `GeoPressureR::speed2prob()`. Speed is the displacement between two consecutive periods divided by 24 h. The default is a Gamma distribution with shape `1.26` and scale `10.3` km/h.
+- A residence-dependent departure probability `move_stay(t)`, where `t` is the number of consecutive days already spent at the current location. The default declines exponentially from `p_0 = 0.607` just after arrival to a plateau `p_inf = 0.137` with time constant `tau = 0.932` days. `move_stay_parameters` only stores these values for `plot_movement()`; the sampler uses `move_stay`.
+
+The default `movement` argument of `sampling_path()` is `sampling_path_default_movement()`, calibrated on multi-sensor tracks of land birds. We write it out below to show its structure; `movement <- sampling_path_default_movement()` gives the same list. See `?sampling_path_default_movement` for details.
 
 ```{r}
 movement <- list(
@@ -184,37 +207,40 @@ movement <- list(
 plot_movement(movement)
 ```
 
-The principal model controls are:
+#### Model controls
 
-- `component_weights = c(light = 1, movement = 1, route = 1)` balances the light, movement, and route components. Only relative values matter. Setting a weight to zero removes that component's soft contribution and should be used only for an explicit sensitivity analysis.
-- `route_detour = 1` retains the empirical excess route-distance prediction. Values below one favour more direct routes; values above one favour more detoured routes.
-- `long_period_light_only = TRUE` samples unknown long-period locations from their light likelihood without allowing the daily movement model to update them. This is useful when movement should not pull a long-period location toward another known or well-supported location.
+The other arguments of `sampling_path()` that change the scientific model are:
 
-The sampler uses Gibbs updates: it repeatedly updates one stationary-period location, or a block of locations, conditional on the current values of the other periods. The resulting draws are correlated, so the run must be long enough to explore the posterior and must be checked with multiple independent chains.
+- `component_weights = c(light = 1, movement = 1, route = 1)` uses each component without rescaling. Each weight scales that component's log probability, so changing even all three weights by the same factor changes the sampled distribution. Setting a weight to zero removes that component's soft contribution while retaining hard support constraints; use this only for an explicit sensitivity analysis.
+- `route_detour = 1` keeps the calibrated route prior. The value multiplies the expected excess route distance (route length over direct distance, minus one) between consecutive long periods. For instance, for a prior mean route is 19% longer than direct; `2` doubles this excess, `0.5` halves it and `0` favours direct routes.
+- `long_period_light_only = TRUE` applies a modular cut: unknown long-period locations are drawn from their light likelihood alone, and movement only informs the daily periods between them. `FALSE` lets movement also update long periods.
+
+#### Computational controls
 
 The following arguments control computation and diagnostics rather than the scientific model:
 
-| Argument | Role and practical choice |
-|---|---|
-| `iter` | Number of saved iterations per chain after warmup. Increase it when effective sample sizes are too small. |
-| `chains` | Number of independent chains. Use at least four for final inference. |
-| `warmup` | Initial iterations discarded while the chain reaches its typical posterior region. |
-| `thin` | Saving interval. Keep `1` unless storage is limiting; thinning does not improve mixing. |
-| `block_interval` | Frequency of block updates. Keep the default unless explicitly comparing sampler efficiency. |
-| `thr_likelihood` | Retained light-likelihood mass used to reduce the state space. The conservative default `0.99` is appropriate for final inference. |
-| `thr_gs` | Maximum ground speed in km/h defining hard movement support. Use a biologically credible value. |
-| `workers` | Number of parallel workers for independent chains. Use `1` while debugging and increase only when appropriate for the system. |
-| `seed` | Random-number seed for reproducible chains. |
-
-
+| Argument | Default | Role and practical choice |
+|---------|-----|----------------------|
+| `iter` | none | Total iterations per chain, including warmup. Increase it when effective sample sizes are too small. |
+| `warmup` | `floor(iter / 4)` | Initial iterations discarded while the chain reaches its typical posterior region. |
+| `thin` | `1` | Saving interval. The number saved is `floor((iter - warmup) / thin)`. Keep `1` unless storage is limiting; thinning does not improve mixing. |
+| `chains` | `1` | Number of independent chains. Use at least four for final inference. |
+| `block_interval` | `2` | Frequency of block updates, which move a whole stay at once. Keep the optimized default unless explicitly comparing sampler efficiency. |
+| `thr_likelihood` | `0.99` | Retained light-likelihood mass used to reduce the state space. The conservative default is appropriate for final inference. |
+| `thr_gs` | `2000 / 24` | Hard truncation of the speed kernel, in km/h (2000 km per day). Speeds are already weighted by the movement model, so set it above the speeds the kernel supports rather than at typical speeds; the default excludes less than 0.1% of the default kernel. Larger values cost computation; smaller values forbid transitions outright. |
+| `workers` | `1` | Number of parallel workers for independent chains. Use `1` while debugging and increase only when appropriate for the system. |
+| `seed` | `NULL` | Random-number seed for reproducible chains. |
 
 ### First run
+
+The sampler uses Gibbs updates: it repeatedly updates one stationary-period location, or a block of locations, conditional on the current values of the other periods. The resulting draws are correlated, so the run must be long enough to explore the posterior and must be checked with multiple independent chains.
 
 Begin with a short run to verify that the likelihood, movement support, and route prior are compatible. This run is for checking the workflow, not for inference.
 
 ```{r}
 paths <- sampling_path(
   tag,
+  movement = movement,
   iter = 500,
   chains = 4,
   warmup = 100,
@@ -222,25 +248,26 @@ paths <- sampling_path(
   quiet = TRUE
 )
 ```
-
-
-### Diagnose the sampler
-
-Always inspect convergence and computational-support diagnostics before interpreting a trajectory. The interactive report provides an overview of sampled paths, traces, R-hat, effective sample sizes, chain separation, and warnings about likelihood or movement boundaries.
+Inspect convergence and computational-support diagnostics before interpreting a trajectory. The interactive report provides an overview of sampled paths, traces, R-hat, effective sample sizes, chain separation, and warnings about likelihood or movement boundaries.
 
 For interactive review, generate the report with:
-
-An example of the resulting report is available on the [diagnostic example page](https://geopressure.org/GeoPathSampleR/sampling-path-diagnostic.html).
 
 ```{r}
 #| eval: false
 diagnostic <- sampling_path_diagnostic(paths, tag, report = TRUE)
 ```
 
+An example of the resulting report is available on the [diagnostic example page](https://geopressure.org/GeoPathSampleR/sampling-path-diagnostic.html).
+
+### Final run
+
+Once the first run shows no problem with the likelihood, movement support or route prior, run longer chains for inference. Increase `iter` and `warmup` until R-hat is close to one and effective sample sizes are large enough for the quantities of interest, and check the diagnostics again before interpreting the paths. The settings below are illustrative only; a real analysis usually needs more iterations.
+
 ```{r}
 #| eval: false
 paths <- sampling_path(
   tag,
+  movement = movement,
   iter = 1000,
   chains = 4,
   warmup = 500,
@@ -252,43 +279,52 @@ sampling_path_diagnostic(paths, tag, report = FALSE)
 
 ### Summarise posterior trajectories
 
-`path_collapse()` retains a stay summary for every sampled path. `path_summary()` returns either one posterior summary per stationary period or one posterior consensus trajectory by first deriving the modal stay/move structure. The consensus is useful for a compact summary, but it does not replace uncertainty assessment.
+`paths` contains one row per posterior draw and stationary period: each draw is a complete trajectory, and daily periods spent at the same location appear as repeated rows. Two functions turn it into something easier to interpret, and they answer different questions:
+
+- `path_collapse()` works **within each draw**. It merges consecutive periods assigned to the same grid cell into a single stay, so each draw becomes a sequence of stays and moves. All draws are kept, and so is the posterior uncertainty.
+- `path_summary()` works **across draws**. It reduces the ensemble to a single path, either one position per stationary period (`by = "stap"`) or one position per consensus stay (`by = "consensus_stay"`).
+
+| Summary | Call | One row per | Keeps uncertainty |
+|------------|-------------------------------|------------------|--------|
+| Collapsed draws | `path_collapse(paths, tag$stap)` | stay of each draw | yes |
+| Mean path | `path_summary(paths, tag$stap, by = "stap")` | stationary period | no |
+| Consensus path | `path_summary(paths, tag$stap, by = "consensus_stay")` | consensus stay | no |
+
+#### Individual draws
+
+We draw ten posterior trajectories at random and collapse each into its stays.
 
 ```{r}
-collapsed <- path_collapse(paths, tag$stap)
-consensus <- path_summary(paths, tag$stap, by = "consensus_stay")
+set.seed(1)
+path_ids <- unique(paths[c("chain", "j")])
+path_ids <- path_ids[sample.int(nrow(path_ids), 10), ]
+draws <- merge(paths, path_ids) |>
+  path_collapse(tag$stap)
 ```
 
-To show both the central trajectory and posterior variability, we draw ten paths at random, calculate the posterior mean position for each stationary period with `path_summary()`, and overlay the consensus path. The random draws are deliberately shown as thin grey lines; the mean and consensus should remain visually prominent.
+#### Summary paths
+
+With `by = "stap"`, `path_summary()` summarises the positions of all draws separately for each stationary period, here with the mean. With `by = "consensus_stay"`, it first estimates the probability of a move at each boundary between consecutive periods as the proportion of draws whose location changes there. Boundaries with a probability above `move_threshold = 0.5` define the consensus stays, and positions are then summarised over all draws and periods of each stay. The columns `move_probability_start` and `move_probability_end` report how clear each boundary is.
+
+```{r}
+mean_path <- path_summary(paths, tag$stap, by = "stap", position = "mean")
+consensus <- path_summary(paths, tag$stap, by = "consensus_stay")
+head(consensus[c("stap_id_start", "stap_id_end", "lat", "lon", "move_probability_end")])
+```
+
+#### Compare the summaries
+
+@fig-path-summaries overlays the three summaries.
 
 ```{r}
 #| code-fold: true
 #| code-summary: "Show plotting code"
 #| label: fig-path-summaries
-#| fig-cap: "Posterior trajectory summaries. Thin grey lines show ten randomly selected collapsed posterior draws. The green dashed line connects posterior mean positions for each stationary period, while the orange line shows the consensus stay/move path. The three summaries answer different questions and should not be interpreted as interchangeable estimates."
+#| fig-cap: "Posterior trajectory summaries. Thin grey lines show ten randomly selected collapsed posterior draws. The green dashed line connects posterior mean positions for each stationary period, while the orange line shows the consensus stay/move path."
 
-set.seed(1)
-path_ids <- unique(paths[c("chain", "j")])
-path_ids <- path_ids[
-  sample.int(nrow(path_ids), size = min(10, nrow(path_ids))),
-  ,
-  drop = FALSE
-]
-draws <- paths[
-  interaction(paths$chain, paths$j) %in%
-    interaction(path_ids$chain, path_ids$j),
-  ,
-  drop = FALSE
-]
-draws <- path_collapse(draws, tag$stap)
 draws$j <- interaction(draws$chain, draws$j, drop = TRUE)
-
-mean_path <- path_summary(
-  paths,
-  tag$stap,
-  by = "stap",
-  position = "mean"
-)
+mean_path$j <- 1
+consensus$j <- 1
 
 map_extent <- tag$param$tag_set_map$extent
 map <- leaflet::leaflet(
@@ -310,7 +346,6 @@ map <- GeoPressureR::plot_path(
   polyline = list(color = "#8C8C8C", weight = 2, opacity = 0.45),
   circle = list(radius = 1, stroke = FALSE, fillOpacity = 0)
 )
-mean_path$j <- 1
 map <- GeoPressureR::plot_path(
   mean_path,
   map = map,
@@ -323,7 +358,6 @@ map <- GeoPressureR::plot_path(
   ),
   circle = list(radius = 1, stroke = FALSE, fillOpacity = 0)
 )
-consensus$j <- 1
 GeoPressureR::plot_path(
   consensus,
   map = map,
@@ -337,4 +371,8 @@ GeoPressureR::plot_path(
   )
 ```
 
-The posterior mean is not necessarily a valid sampled trajectory: averaging locations can place a point between two distinct posterior modes. The consensus path preserves a representative stay/move structure, while the individual draws make multimodality and route uncertainty visible.
+The three summaries should not be interpreted as interchangeable estimates:
+
+- The **individual draws** are valid trajectories and make multimodality and route uncertainty visible. Use them, or all collapsed draws, for any quantity derived from the trajectory, such as stopover durations or route length, and then summarise that quantity across draws.
+- The **mean path** follows the stationary periods, but is not necessarily a valid trajectory: averaging locations can place a point between two distinct posterior modes, and it does not show when the bird stayed or moved.
+- The **consensus path** preserves a representative stay/move structure, which gives a compact summary of the timing of movements. It does not replace an assessment of uncertainty.
