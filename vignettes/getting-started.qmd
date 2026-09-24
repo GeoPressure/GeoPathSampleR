@@ -186,7 +186,7 @@ plot_movement(movement)
 
 The principal model controls are:
 
-- `component_weights = c(light = 1, movement = 1, route = 1)` balances the light, movement, and route components. Only relative values matter. Setting a weight to zero removes that component's soft contribution and should be used only for an explicit sensitivity analysis.
+- `component_weights = c(light = 1, movement = 1, route = 1)` uses each component without rescaling. Each weight scales that component's log probability, so changing even all three weights by the same factor changes the sampled distribution. Setting a weight to zero removes that component's soft contribution while retaining hard support constraints; use this only for an explicit sensitivity analysis.
 - `route_detour = 1` retains the empirical excess route-distance prediction. Values below one favour more direct routes; values above one favour more detoured routes.
 - `long_period_light_only = TRUE` samples unknown long-period locations from their light likelihood without allowing the daily movement model to update them. This is useful when movement should not pull a long-period location toward another known or well-supported location.
 
@@ -196,7 +196,7 @@ The following arguments control computation and diagnostics rather than the scie
 
 | Argument | Role and practical choice |
 |---|---|
-| `iter` | Number of saved iterations per chain after warmup. Increase it when effective sample sizes are too small. |
+| `iter` | Total iterations per chain, including warmup. The number saved is `floor((iter - warmup) / thin)`. Increase it when effective sample sizes are too small. |
 | `chains` | Number of independent chains. Use at least four for final inference. |
 | `warmup` | Initial iterations discarded while the chain reaches its typical posterior region. |
 | `thin` | Saving interval. Keep `1` unless storage is limiting; thinning does not improve mixing. |
@@ -215,6 +215,7 @@ Begin with a short run to verify that the likelihood, movement support, and rout
 ```{r}
 paths <- sampling_path(
   tag,
+  movement = movement,
   iter = 500,
   chains = 4,
   warmup = 100,
@@ -241,6 +242,7 @@ diagnostic <- sampling_path_diagnostic(paths, tag, report = TRUE)
 #| eval: false
 paths <- sampling_path(
   tag,
+  movement = movement,
   iter = 1000,
   chains = 4,
   warmup = 500,

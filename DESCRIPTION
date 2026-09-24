@@ -34,11 +34,14 @@ Suggests:
     leaflet,
     knitr,
     pkgdown,
+    plotly,
     quarto,
     rmarkdown,
     rnaturalearth,
     rnaturalearthdata,
-    testthat (>= 3.0.0)
+    scales,
+    testthat (>= 3.0.0),
+    tidyr
 Remotes:
     GeoPressure/GeoPressureR@dev
 Config/testthat/edition: 3
