@@ -1,6 +1,6 @@
 Package: GeoPathSampleR
 Title: Bayesian Reconstruction of Animal Trajectories
-Version: 0.1.0
+Version: 0.1.0.9000
 Authors@R:
     person("Raphaël", "Nussbaumer", , "rafnuss@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-8185-1020"))
