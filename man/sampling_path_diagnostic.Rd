@@ -32,6 +32,7 @@ response. See the \href{https://geopressure.org/GeoPathSampleR/sampling-path-dia
 \seealso{
 Other sampling_path:
 \code{\link[=plot_movement]{plot_movement()}},
-\code{\link[=sampling_path]{sampling_path()}}
+\code{\link[=sampling_path]{sampling_path()}},
+\code{\link[=sampling_path_default_movement]{sampling_path_default_movement()}}
 }
 \concept{sampling_path}

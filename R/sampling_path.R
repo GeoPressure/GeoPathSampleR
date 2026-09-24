@@ -1,116 +1,52 @@
-#' Gibbs sampling for stationary paths
+#' Default movement model for path sampling
 #'
 #' @description
-#' Prepare the likelihood and movement inputs, run the Gibbs sampler for one or
-#' more chains, and return the sampled path locations in long format.
-#'
-#' @param tag a GeoPressureR `tag` object containing the likelihood maps and
-#'   `tag_set_map` parameters.
-#' @param movement one movement model applied across the complete track. The
-#'   parameter list must contain the fields passed to `speed2prob()` and a
-#'   `move_stay` function returning the probability of moving after a stay
-#'   duration. Users can optionally provide `approx_eps` to drop extremely small
-#'   movement weights from the precomputed neighbourhood (default `1e-6`).
-#' @param iter number of Gibbs iterations.
-#' @param chains number of chains to run.
-#' @param warmup number of iterations to discard at the beginning.
-#' @param thin thinning interval for saved samples.
-#' @param refresh progress message update frequency, in iterations.
-#' @param block_interval interval between block iterations. All remaining
-#'   iterations are site iterations that update each eligible period once.
-#'   Use `0` or `Inf` to disable block iterations. Values greater than one are
-#'   required so site iterations remain part of the chain.
-#' @param long_period_light_only logical. `TRUE` (the default) draws unknown
-#'   `stap0` locations directly from their retained light likelihood and samples
-#'   the daily path conditionally without allowing movement to update them.
-#'   `FALSE` updates those locations with both light and movement information.
-#'   Tags without a `stap0` column have no long periods.
-#' @param component_weights named non-negative weights for the light likelihood,
-#'   daily movement model, and interval route model. The default gives all three
-#'   components their calibrated weight. A zero removes that component's soft
-#'   contribution while retaining structural support constraints.
-#' @param route_detour non-negative multiplier of the empirically predicted
-#'   excess route distance. `0` targets direct routes, `1` retains the empirical
-#'   prediction, and values above one favour more detoured routes.
-#' @param route_model calibrated route-model parameter list. The default uses
-#'   the maintained duration-and-direct-distance calibration. Supply cross-fitted
-#'   parameters only for validation workflows.
-#' @param likelihood field of the `tag` list containing the likelihood map.
-#' @param thr_likelihood threshold of percentile to keep likely locations in
-#'   each stationary period. Lower values keep fewer nodes and speed up the
-#'   sampler, but exclude more of the light likelihood surface entirely. The
-#'   default `0.99` is a conservative state-space reduction; lower values such
-#'   as `0.95` are faster but more aggressive.
-#' @param thr_gs maximum ground speed, in km/h, used as the hard radius of the
-#'   movement kernel. Larger values allow broader transitions and can improve
-#'   mixing when movements are uncertain, but they also increase computation.
-#'   Smaller values are faster but enforce a tighter movement radius.
-#' @param workers number of parallel workers used for independent chains.
-#'   Use 1 for sequential execution.
-#' @param seed optional RNG seed for reproducible chains.
-#' @param quiet logical to hide messages.
-#'
-#' @return A data.frame with columns `j`, `chain`, `stap_id`, `ind`, `lat`, and
-#'   `lon`. The result carries `type = "sampling"` and the scalar sampler
-#'   settings in a `sampling_parameters` attribute for reproducible diagnostics.
+#' Return the calibrated movement model used by default in [sampling_path()].
+#' Call `sampling_path_default_movement()` to inspect its values, plot it with
+#' [plot_movement()], or modify some fields before passing it to
+#' `sampling_path(movement = )`.
 #'
 #' @details
-#' `sampling_path()` separates structural constraints from computational
-#' approximations. Impossible geography, such as water after masking, is removed
-#' from the state space. The arguments `thr_likelihood`, `thr_gs`,
-#' and `movement$approx_eps` control how aggressively the sampler reduces the
-#' fixed light support and movement kernel for speed.
+#' The movement model defines the daily transition between consecutive
+#' stationary periods. It is a list with two parts.
 #'
-#' A practical tuning strategy is:
-#' - start with the defaults for final inference;
-#' - use a smaller `thr_likelihood` only for explicitly approximate exploratory
-#'   runs;
-#' - if no movement-feasible path exists, increase `thr_likelihood` or
-#'   `thr_gs`.
+#' **Ground-speed kernel.** The fields `method`, `shape`, `scale`,
+#' `low_speed_fix` and `zero_speed_ratio` are passed to
+#' [GeoPressureR::speed2prob()] and follow the convention of
+#' [GeoPressureR::graph_set_movement()]. Speed is the great-circle displacement
+#' between two consecutive periods divided by 24 h, in km/h. With
+#' `method = "gamma"`, the speed density is a Gamma distribution with shape
+#' `shape` and scale `scale` (km/h). The probability of moving to a given cell
+#' is this density divided by the distance and multiplied by `cos(latitude)`,
+#' which accounts for the number and area of cells at that distance. The hard
+#' movement radius is set separately by `sampling_path(thr_gs = )`.
 #'
+#' **Residence-dependent departure.** `move_stay` is a function of the
+#' residence `t`, the number of consecutive transitions spent at the current
+#' location (`0` for the first transition after arrival), returning the
+#' probability of departing at the next transition. The default is the
+#' exponential decline to a plateau
+#' `p_inf + (p_0 - p_inf) * exp(-t / tau)`. `move_stay_parameters` stores
+#' `p_0`, `p_inf` and `tau` so that [plot_movement()] can annotate them; it is
+#' not used by the sampler, so update `move_stay` when changing them.
+#'
+#' The optional field `approx_eps` (default `1e-6`) drops movement-kernel
+#' weights below this value from the precomputed neighbourhood.
+#'
+#' The default values were calibrated on multi-sensor reference trajectories
+#' of land birds (Gamma shape `1.26` and scale `10.3` km/h; `p_0 = 0.607`,
+#' `p_inf = 0.137`, `tau = 0.932`). They should not be assumed to transfer to
+#' other taxa.
+#'
+#' @return A movement list with fields `method`, `shape`, `scale`,
+#'   `low_speed_fix`, `zero_speed_ratio`, `move_stay_parameters`, and
+#'   `move_stay`.
 #' @examples
-#' example_dir <- system.file("extdata", package = "GeoPathSampleR")
-#' tag <- GeoPressureR::tag_create(
-#'   "14OI",
-#'   crop_start = "2015-07-17",
-#'   crop_end = "2016-07-11",
-#'   directory = file.path(example_dir, "data/raw-tag/14OI"),
-#'   assert_pressure = FALSE,
-#'   quiet = TRUE
-#' )
-#' tag <- GeoPressureR::twilight_create(tag)
-#' tag <- GeoPressureR::twilight_label_read(
-#'   tag,
-#'   file = file.path(example_dir, "data/twilight-label/14OI-labeled.csv")
-#' )
-#' tag <- GeoPressureR::tag_stap_daily(
-#'   tag,
-#'   stap_long = file.path(example_dir, "data/stap-label/14OI.csv"),
-#'   movement_period = "day",
-#'   quiet = TRUE
-#' )
-#' tag <- GeoPressureR::tag_set_map(
-#'   tag,
-#'   extent = c(-20, 40, -40, 60),
-#'   scale = 1
-#' )
-#' tag <- GeoPressureR::geolight_map(
-#'   tag,
-#'   twl_calib_adjust = 1,
-#'   fitted_location_duration = 30,
-#'   twl_llp = \(n) 1.5 * log(n) / n,
-#'   quiet = TRUE
-#' )
-#'
-#' paths <- sampling_path(
-#'   tag,
-#'   iter = 3,
-#'   warmup = 1,
-#'   seed = 1,
-#'   quiet = TRUE
-#' )
+#' movement <- sampling_path_default_movement()
+#' str(movement)
+#' plot_movement(movement)
 #' @family sampling_path
-#' @noRd
+#' @export
 sampling_path_default_movement <- function() {
   list(
     method = "gamma",
@@ -480,36 +416,153 @@ sampling_path_with_route_model <- function(
 #'
 #' @description
 #' Sample stationary trajectories from light likelihood maps and calibrated
-#' movement components.
+#' movement components. The posterior combines three components: the
+#' stationary-period light likelihood, a daily movement model (see
+#' [sampling_path_default_movement()]), and a route-distance prior on the
+#' interval between consecutive long periods (`stap0`).
 #'
-#' @param tag GeoPressureR tag object containing likelihood maps.
-#' @param iter number of Gibbs iterations.
+#' @param tag GeoPressureR tag object containing likelihood maps and
+#'   `tag_set_map` parameters. Long periods are identified by `tag$stap$stap0`,
+#'   as created by [GeoPressureR::tag_stap_daily()].
+#' @param iter number of Gibbs iterations per chain, including `warmup`.
 #' @param likelihood tag field containing the light likelihood map.
-#' @param movement movement model containing a speed kernel and stay/move
-#'   probabilities.
-#' @param component_weights named non-negative weights for the light,
-#'   movement, and route components.
-#' @param route_detour non-negative multiplier of the empirical excess route
-#'   distance; `1` retains the calibrated default.
-#' @param long_period_light_only whether unknown long periods are drawn from
-#'   their light likelihood without movement updates.
+#' @param movement daily movement model: a ground-speed kernel passed to
+#'   [GeoPressureR::speed2prob()] and a `move_stay` function returning the
+#'   probability of departing after a residence time. The default,
+#'   [sampling_path_default_movement()], is the calibrated land-bird model;
+#'   call it to inspect the values and [plot_movement()] to plot them.
+#' @param component_weights named non-negative weights for the `light`,
+#'   `movement`, and `route` components. Each weight multiplies that
+#'   component's log probability, so the default `1` uses the calibrated
+#'   components unchanged. A zero removes that component's soft contribution
+#'   while retaining hard support constraints (retained light support, water
+#'   mask and `thr_gs`).
+#' @param route_detour non-negative multiplier of the scale of the Gamma prior
+#'   on route excess (see Details). `1` retains the calibrated prior, `0`
+#'   targets direct routes, and values above one favour more detoured routes.
+#' @param long_period_light_only logical. `TRUE` applies a modular cut: at every
+#'   iteration, each unknown long-period location is redrawn from its light
+#'   likelihood alone, and only daily periods are updated with the movement and
+#'   route components. `FALSE` updates long periods with light, movement and
+#'   route information like daily periods. See Details.
 #' @param chains number of independent chains.
 #' @param warmup number of initial iterations to discard.
 #' @param thin interval between saved samples.
-#' @param block_interval interval between block updates; use `0` to disable
-#'   them.
-#' @param thr_likelihood retained light-likelihood percentile.
-#' @param thr_gs maximum movement speed in km/h used for hard support.
+#' @param block_interval interval between block iterations, which update each
+#'   current residence segment as a single block. All other iterations are
+#'   site iterations that update each eligible period once. Use `0` or `Inf` to
+#'   disable block iterations; values must otherwise be at least `2`.
+#' @param thr_likelihood retained light-likelihood mass in each stationary
+#'   period. Lower values keep fewer cells and speed up the sampler, but exclude
+#'   more of the light likelihood surface entirely. The default `0.99` is a
+#'   conservative state-space reduction.
+#' @param thr_gs maximum ground speed, in km/h, used as the hard radius of the
+#'   daily movement kernel (default `2000 / 24`, i.e. 2000 km per day). Speeds
+#'   below it are weighted by the `movement` kernel, so `thr_gs` is a
+#'   truncation of that kernel rather than a typical speed: set it above the
+#'   speeds the kernel supports. The default excludes less than 0.1% of the
+#'   default kernel. Larger values increase computation; smaller values make
+#'   faster transitions impossible rather than unlikely.
 #' @param refresh progress update interval in iterations.
 #' @param workers number of parallel workers for independent chains.
-#' @param seed optional random seed.
+#'   Use `1` for sequential execution.
+#' @param seed optional random seed for reproducible chains.
 #' @param quiet whether to suppress progress messages.
 #' @return A data.frame with columns `j`, `chain`, `stap_id`, `ind`, `lat`, and
 #'   `lon`. The result carries `type = "sampling"` and sampler settings in a
 #'   `sampling_parameters` attribute.
+#'
+#' @details
+#' **Route-distance prior.** For each interval between consecutive long
+#' periods \eqn{\ell}, the route ratio \eqn{R_\ell} is the sum of the daily
+#' great-circle displacements divided by the direct distance \eqn{D_\ell}
+#' between the two long-period locations. The sampler adds
+#' `component_weights["route"]` times the log density
+#' \deqn{\log \mathrm{Gamma}(R_\ell - 1 \mid \alpha_R,\ \mathrm{route\_detour} \times \theta_\ell),}{
+#'   log dgamma(R - 1, shape = alpha_R, scale = route_detour * theta),}
+#' with shape \eqn{\alpha_R = 1.22} and
+#' \deqn{\log \theta_\ell = -1.88 + 0.552\,[\log(1 + T_\ell) - 3.47] - 0.318\,[\log D_\ell - 8.15],}{
+#'   log(theta) = -1.88 + 0.552 * (log(1 + T) - 3.47) - 0.318 * (log(D) - 8.15),}
+#' where \eqn{T_\ell} is the interval duration in days and \eqn{D_\ell} is in
+#' km. Both covariates are clamped to the range of the calibration data. The
+#' term is omitted when \eqn{D_\ell < 300} km or when the interval contains at
+#' most one daily displacement.
+#'
+#' Because `route_detour` multiplies the Gamma scale, the prior mean and every
+#' prior quantile of the route excess \eqn{R_\ell - 1} scale linearly with it.
+#' For example, an interval of about 31 days with endpoints about 3,500 km
+#' apart has \eqn{\theta_\ell \approx 0.15}, i.e. a prior mean route ratio of
+#' about 1.19; `route_detour = 2` raises it to about 1.37 and `0.5` lowers it
+#' to about 1.09. `route_detour = 0` collapses the scale, so any detour is
+#' strongly penalised. The prior remains soft: the realised detour of the
+#' posterior also depends on the light and movement components.
+#'
+#' **Long periods and modular cut.** Twilights accurately locate long periods
+#' but leave daily-period locations ambiguous. With
+#' `long_period_light_only = TRUE`, each unknown long-period location is
+#' redrawn independently at every iteration from its retained light
+#' likelihood (raised to `component_weights["light"]`), without using the
+#' movement or route components. When a redraw violates hard movement support,
+#' only the neighbouring daily locations needed to restore a feasible path are
+#' resampled. Daily periods are then updated conditionally on these long-period
+#' draws. This is a modular (cut) approximation to the joint posterior:
+#' information flows from the long-period likelihoods to the daily path, but
+#' the movement model cannot pull long-period locations away from their light
+#' likelihood. Known-location periods are always fixed.
+#'
+#' **Computational approximations.** Impossible geography, such as water after
+#' masking, is removed from the state space. The arguments `thr_likelihood`,
+#' `thr_gs` and `movement$approx_eps` control how aggressively the sampler
+#' reduces the fixed light support and movement kernel for speed. Start with
+#' the defaults for final inference, use a smaller `thr_likelihood` only for
+#' explicitly approximate exploratory runs, and increase `thr_likelihood` or
+#' `thr_gs` if no movement-feasible path exists.
+#'
 #' @examples
 #' \dontrun{
-#' paths <- sampling_path(tag, iter = 1000, chains = 4, seed = 1)
+#' example_dir <- system.file("extdata", package = "GeoPathSampleR")
+#' tag <- GeoPressureR::tag_create(
+#'   "14OI",
+#'   crop_start = "2015-07-17",
+#'   crop_end = "2016-07-11",
+#'   directory = file.path(example_dir, "data/raw-tag/14OI"),
+#'   assert_pressure = FALSE,
+#'   quiet = TRUE
+#' )
+#' tag <- GeoPressureR::twilight_create(tag)
+#' tag <- GeoPressureR::twilight_label_read(
+#'   tag,
+#'   file = file.path(example_dir, "data/twilight-label/14OI-labeled.csv")
+#' )
+#' tag <- GeoPressureR::tag_stap_daily(
+#'   tag,
+#'   stap_long = file.path(example_dir, "data/stap-label/14OI.csv"),
+#'   movement_period = "day",
+#'   quiet = TRUE
+#' )
+#' tag <- GeoPressureR::tag_set_map(
+#'   tag,
+#'   extent = c(-20, 40, -11, 60),
+#'   scale = 1
+#' )
+#' tag <- GeoPressureR::geolight_map(
+#'   tag,
+#'   twl_calib_adjust = 1,
+#'   fitted_location_duration = 30,
+#'   twl_llp = \(n) 1.5 * log(n) / n,
+#'   quiet = TRUE
+#' )
+#' tag$map_light <- GeoPressureR::map_add_mask_water(tag$map_light)
+#'
+#' paths <- sampling_path(
+#'   tag,
+#'   movement = sampling_path_default_movement(),
+#'   iter = 500,
+#'   chains = 4,
+#'   warmup = 100,
+#'   seed = 1,
+#'   quiet = TRUE
+#' )
 #' }
 #' @family sampling_path
 #' @export
@@ -584,7 +637,6 @@ sampling_path_route_model <- function() {
   )
 }
 
-#' Prepare Span-Level Route Prior
 sampling_path_run_chain <- function(
   chain_id,
   lk,
@@ -1344,7 +1396,7 @@ sampling_path_weight_log_prob <- function(log_prob, weight) {
   out
 }
 
-
+#' Prepare Span-Level Route Prior
 #'
 #' @return A route-prior list with sampler row indices, or `NULL`.
 #' @noRd

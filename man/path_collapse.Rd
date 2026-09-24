@@ -25,7 +25,9 @@ A data frame with one row per collapsed stay and columns
 \description{
 Summarise each realised path by merging consecutive stationary periods that
 were assigned to the same grid cell. Paths are identified by \code{j} and, when
-present, \code{chain}.
+present, \code{chain}. Each draw is collapsed separately, so the output keeps
+one stay/move sequence per draw and all posterior variability; use
+\code{\link[=path_summary]{path_summary()}} to summarise across draws.
 }
 \seealso{
 Other path:
