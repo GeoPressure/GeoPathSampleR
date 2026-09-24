@@ -1,5 +1,5 @@
 Package: GeoPathSampleR
-Title: Bayesian Reconstruction of Animal Trajectories
+Title: Posterior Sampling of Geolocator Paths
 Version: 0.1.0.9000
 Authors@R:
     person("Raphaël", "Nussbaumer", , "rafnuss@gmail.com", role = c("aut", "cre"),

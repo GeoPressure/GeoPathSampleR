@@ -3,7 +3,7 @@
   "@type": "SoftwareSourceCode",
   "identifier": "GeoPathSampleR",
   "description": "Reconstructs bird migration trajectories from stationary-period likelihood maps built with GeoPressureR. A Gibbs sampler combines residence-dependent departure, a ground-speed distribution conditional on movement, and a prior on cumulative route distance between long periods. Provides posterior stay summaries and sampling diagnostics.",
-  "name": "GeoPathSampleR: Bayesian Reconstruction of Animal Trajectories",
+  "name": "GeoPathSampleR: Posterior Sampling of Geolocator Paths",
   "relatedLink": "https://geopressure.org/GeoPathSampleR/",
   "codeRepository": "https://github.com/GeoPressure/GeoPathSampleR",
   "issueTracker": "https://github.com/GeoPressure/GeoPathSampleR/issues",
