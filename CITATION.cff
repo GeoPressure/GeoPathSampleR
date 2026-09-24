@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "To cite GeoPathSampleR in publications use:"
 type: software
 license: GPL-3.0-or-later
-title: "GeoPathSampleR: Bayesian reconstruction of animal trajectories from geolocation likelihood maps"
+title: "GeoPathSampleR: Posterior Sampling of Geolocator Paths"
 version: 0.1.0
 date-released: 2026-08-15
 doi: 10.5281/zenodo.21944194
