@@ -9,7 +9,6 @@
 ^vignettes/.*\.html$
 ^\.DS_Store$
 ^CITATION\.cff$
-^LICENSE\.md$
 ^README\.Rmd$
 ^GeoTwilightR\.Rproj$
 ^codemeta\.json$
