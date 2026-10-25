@@ -143,6 +143,14 @@ sampling_path_with_route_model <- function(
   }
   workers <- min(as.integer(workers), chains)
 
+  # Each transition is one daily step, so excluded periods cannot be bridged.
+  if (!all(tag$stap$include %||% TRUE)) {
+    cli::cli_abort(c(
+      "Excluded stationary periods are not supported: {.field stap$include} is {.val FALSE} for stap_id {.val {tag$stap$stap_id[!tag$stap$include]}}.",
+      "i" = "Re-run {.fun GeoPressureR::tag_set_map} without {.arg include_stap_id} or {.arg include_min_duration}."
+    ))
+  }
+
   prep <- sampling_path_prepare(
     tag = tag,
     likelihood = likelihood,
@@ -1633,7 +1641,12 @@ sampling_path_route_log_prior <- function(
       is.finite(direct_distance) &
       direct_distance >= route_prior$min_direct_distance_km &
       n_move_days > 1L
-    route_ratio <- pmax(route_distance / direct_distance, 1)
+    # Floor the excess so exactly straight grid routes (e.g. along one column)
+    # keep the continuous limit of the density instead of a zero-density cliff.
+    route_excess <- pmax(
+      route_distance / direct_distance - 1,
+      .Machine$double.eps
+    )
     support_covariates <- sampling_path_route_support_projection(
       route_prior$intervals$duration_days[interval_i],
       direct_distance,
@@ -1652,11 +1665,11 @@ sampling_path_route_log_prior <- function(
     )
     shape <- route_prior$gamma_shape
     log_density <- (shape - 1) *
-      log(route_ratio - 1) -
-      (route_ratio - 1) / scale -
+      log(route_excess) -
+      route_excess / scale -
       lgamma(shape) -
       shape * log(scale)
-    log_density <- rep_len(log_density, length(route_ratio))
+    log_density <- rep_len(log_density, length(route_excess))
     log_density[!is.finite(log_density)] <- log(.Machine$double.xmin)
     out[apply_prior] <- out[apply_prior] + log_density[apply_prior]
   }
