@@ -1721,17 +1721,12 @@ sampling_path_route_support_projection <- function(
 #' @return Numeric distance in kilometres.
 #' @noRd
 sampling_path_index_distance_km <- function(from_idx, to_idx, kt) {
-  n <- max(length(from_idx), length(to_idx))
-  from_idx <- rep_len(from_idx, n)
-  to_idx <- rep_len(to_idx, n)
+  # A scalar endpoint recycles in the arithmetic instead of being replicated.
   from_row <- (from_idx - 1L) %% kt$nrow + 1L
   to_row <- (to_idx - 1L) %% kt$nrow + 1L
-  from_lat <- kt$lat_rad[from_row]
-  to_lat <- kt$lat_rad[to_row]
-  from_lon <- kt$lon_rad[(from_idx - 1L) %/% kt$nrow + 1L]
-  to_lon <- kt$lon_rad[(to_idx - 1L) %/% kt$nrow + 1L]
-  dlat <- to_lat - from_lat
-  dlon <- to_lon - from_lon
+  dlat <- kt$lat_rad[to_row] - kt$lat_rad[from_row]
+  dlon <- kt$lon_rad[(to_idx - 1L) %/% kt$nrow + 1L] -
+    kt$lon_rad[(from_idx - 1L) %/% kt$nrow + 1L]
   a <- sin(dlat / 2)^2 +
     kt$cos_lat[from_row] * kt$cos_lat[to_row] * sin(dlon / 2)^2
   2 * 6378.137 * atan2(sqrt(pmin(a, 1)), sqrt(pmax(1 - a, 0)))
@@ -1853,27 +1848,26 @@ sampling_path_transition_log_prob <- function(
   kt
 ) {
   kernel <- kt$movement_kernel
-  n <- max(length(source_idx), length(destination_idx))
-  source_idx <- rep_len(source_idx, n)
-  destination_idx <- rep_len(destination_idx, n)
+  # A scalar endpoint recycles in the arithmetic instead of being replicated.
   source_row <- kt$cell_row[source_idx]
   drow <- kt$cell_row[destination_idx] - source_row
   dcol <- kt$cell_col[destination_idx] - kt$cell_col[source_idx]
-  out <- rep(-Inf, n)
   move_pos <- source_idx != destination_idx &
     abs(drow) <= kernel$max_drow &
     abs(dcol) <= kernel$max_dcol &
     kt$struct_mask[destination_idx]
+  out <- rep(-Inf, length(move_pos))
 
   move_i <- which(move_pos)
-  lookup_idx <- source_row[move_i] +
-    (drow[move_i] + kernel$max_drow) * kt$nrow +
-    (dcol[move_i] + kernel$max_dcol) * kt$nrow * kernel$lookup_ndrow
+  lookup_idx <- (source_row +
+    (drow + kernel$max_drow) * kt$nrow +
+    (dcol + kernel$max_dcol) * kt$nrow * kernel$lookup_ndrow)[move_i]
   move_log_prob <- kernel$move_log_lookup[lookup_idx]
   finite_move <- is.finite(move_log_prob)
   move_i <- move_i[finite_move]
+  move_log_norm <- kernel$move_log_norm[source_idx]
   out[move_i] <- move_log_prob[finite_move] -
-    kernel$move_log_norm[source_idx[move_i]]
+    if (length(move_log_norm) == 1L) move_log_norm else move_log_norm[move_i]
 
   out
 }
