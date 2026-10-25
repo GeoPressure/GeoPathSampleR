@@ -203,7 +203,6 @@ sampling_path_with_route_model <- function(
   use_parallel <- workers > 1L && chains > 1L && .Platform$OS.type != "windows"
   progress_bar <- NULL
   progress_closed <- FALSE
-  progress_pos <- 0L
   progress_fn <- NULL
 
   if (!quiet) {
@@ -229,8 +228,10 @@ sampling_path_with_route_model <- function(
       add = TRUE
     )
     progress_fn <- function(amount) {
-      progress_pos <<- progress_pos + amount
-      utils::setTxtProgressBar(progress_bar, progress_pos)
+      utils::setTxtProgressBar(
+        progress_bar,
+        utils::getTxtProgressBar(progress_bar) + amount
+      )
     }
   }
 
