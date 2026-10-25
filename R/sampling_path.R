@@ -75,7 +75,7 @@ sampling_path_with_route_model <- function(
   warmup = floor(iter / 4),
   thin = 1,
   block_interval = 2,
-  boundary_interval = 0,
+  boundary_interval = 1,
   thr_likelihood = 0.99,
   thr_gs = 2000 / 24,
   refresh = 10,
@@ -478,7 +478,8 @@ sampling_path_with_route_model <- function(
 #' @param boundary_interval interval between boundary sweeps, which resample
 #'   the date of every boundary between consecutive residence segments while
 #'   keeping both locations. A sweep runs after the site or block update of
-#'   every `boundary_interval`-th iteration. Use `0` or `Inf` to disable them.
+#'   every `boundary_interval`-th iteration. The default `1` sweeps every
+#'   iteration at a small cost; use `0` or `Inf` to disable them.
 #' @param thr_likelihood retained light-likelihood mass in each stationary
 #'   period. Lower values keep fewer cells and speed up the sampler, but exclude
 #'   more of the light likelihood surface entirely. The default `0.99` is a
@@ -605,7 +606,7 @@ sampling_path <- function(
   warmup = floor(iter / 4),
   thin = 1,
   block_interval = 2,
-  boundary_interval = 0,
+  boundary_interval = 1,
   thr_likelihood = 0.99,
   thr_gs = 2000 / 24,
   refresh = 10,
