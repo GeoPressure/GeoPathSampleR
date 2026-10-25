@@ -1061,12 +1061,18 @@ sampling_path_update_boundary <- function(
     cell <- path_idx[c(t, t + 1L)]
 
     # Light of every window period at either cell, cumulated from each side.
+    # Supports are sorted, so findInterval() avoids hashing large supports.
     light <- vapply(
       window,
-      function(i) lk[[i]]$log_prob[match(cell, lk[[i]]$idx)],
+      function(i) {
+        pos <- pmax(
+          findInterval(cell, lk[[i]]$idx, checkSorted = FALSE, checkNA = FALSE),
+          1L
+        )
+        ifelse(lk[[i]]$idx[pos] == cell, lk[[i]]$log_prob[pos], -Inf)
+      },
       numeric(2)
     )
-    light[is.na(light)] <- -Inf
     end_1 <- s:(u - 1L)
     len_1 <- end_1 - s + 1L
     len_2 <- u - end_1
