@@ -932,9 +932,10 @@ sampling_path_update_block <- function(
       )
   }
 
-  state_next$log_prob <- state_next$log_prob +
+  feasible <- which(is.finite(state_next$log_prob))
+  state_next$log_prob[feasible] <- state_next$log_prob[feasible] +
     sampling_path_route_log_prior(
-      candidate_idx = state_next$idx,
+      candidate_idx = state_next$idx[feasible],
       path_idx = path_idx,
       replace_i = block_start:block_end,
       kt = kt,
@@ -1006,9 +1007,11 @@ sampling_path_update_site <- function(
       ),
       component_weights[["movement"]]
     )
-  state$log_prob <- state$log_prob +
+  # The route prior cannot revive candidates excluded by hard support.
+  feasible <- which(is.finite(state$log_prob))
+  state$log_prob[feasible] <- state$log_prob[feasible] +
     sampling_path_route_log_prior(
-      candidate_idx = state$idx,
+      candidate_idx = state$idx[feasible],
       path_idx = path_idx,
       replace_i = stap_i,
       kt = kt,
@@ -1559,7 +1562,8 @@ sampling_path_route_log_prior <- function(
   )
 
   for (interval_i in affected_interval) {
-    interval <- route_prior$intervals[interval_i, ]
+    interval_start_i <- route_prior$intervals$start_i[interval_i]
+    interval_end_i <- route_prior$intervals$end_i[interval_i]
     edge_i <- route_prior$interval_edges[[interval_i]]
     current_edge_distance <- if (is.null(route_edge_distance)) {
       sampling_path_index_distance_km(
@@ -1609,15 +1613,15 @@ sampling_path_route_log_prior <- function(
       n_move_days <- n_move_days + (candidate_edge_distance > 0)
     }
 
-    start_idx <- if (interval$start_i %in% replace_i) {
+    start_idx <- if (interval_start_i %in% replace_i) {
       candidate_idx
     } else {
-      path_idx[interval$start_i]
+      path_idx[interval_start_i]
     }
-    end_idx <- if (interval$end_i %in% replace_i) {
+    end_idx <- if (interval_end_i %in% replace_i) {
       candidate_idx
     } else {
-      path_idx[interval$end_i]
+      path_idx[interval_end_i]
     }
     direct_distance <- sampling_path_index_distance_km(
       start_idx,
@@ -1631,7 +1635,7 @@ sampling_path_route_log_prior <- function(
       n_move_days > 1L
     route_ratio <- pmax(route_distance / direct_distance, 1)
     support_covariates <- sampling_path_route_support_projection(
-      interval$duration_days,
+      route_prior$intervals$duration_days[interval_i],
       direct_distance,
       route_prior$support %||% NULL
     )
@@ -1641,15 +1645,17 @@ sampling_path_route_log_prior <- function(
         (support_covariates$duration_log - route_prior$duration_center) +
       route_prior$distance_coefficient *
         (support_covariates$distance_log - route_prior$distance_center)
-    log_density <- stats::dgamma(
-      route_ratio - 1,
-      shape = route_prior$gamma_shape,
-      scale = pmax(
-        (route_prior$detour %||% 1) * exp(linear_predictor),
-        .Machine$double.eps
-      ),
-      log = TRUE
+    # Closed-form Gamma log density: much cheaper than stats::dgamma().
+    scale <- pmax(
+      (route_prior$detour %||% 1) * exp(linear_predictor),
+      .Machine$double.eps
     )
+    shape <- route_prior$gamma_shape
+    log_density <- (shape - 1) *
+      log(route_ratio - 1) -
+      (route_ratio - 1) / scale -
+      lgamma(shape) -
+      shape * log(scale)
     log_density <- rep_len(log_density, length(route_ratio))
     log_density[!is.finite(log_density)] <- log(.Machine$double.xmin)
     out[apply_prior] <- out[apply_prior] + log_density[apply_prior]
