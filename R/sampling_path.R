@@ -75,6 +75,7 @@ sampling_path_with_route_model <- function(
   warmup = floor(iter / 4),
   thin = 1,
   block_interval = 2,
+  boundary_interval = 0,
   thr_likelihood = 0.99,
   thr_gs = 2000 / 24,
   refresh = 10,
@@ -118,6 +119,11 @@ sampling_path_with_route_model <- function(
       block_interval >= 2,
     is.infinite(block_interval) ||
       block_interval == floor(block_interval),
+    is.numeric(boundary_interval),
+    length(boundary_interval) == 1,
+    boundary_interval >= 0,
+    is.infinite(boundary_interval) ||
+      boundary_interval == floor(boundary_interval),
     iter > warmup,
     is.null(seed) ||
       (is.numeric(seed) && length(seed) == 1 && seed == floor(seed)),
@@ -140,6 +146,11 @@ sampling_path_with_route_model <- function(
     block_interval <- 0L
   } else {
     block_interval <- as.integer(block_interval)
+  }
+  boundary_interval <- if (is.infinite(boundary_interval)) {
+    0L
+  } else {
+    as.integer(boundary_interval)
   }
   workers <- min(as.integer(workers), chains)
 
@@ -249,6 +260,7 @@ sampling_path_with_route_model <- function(
       warmup = warmup,
       thin = thin,
       block_interval = block_interval,
+      boundary_interval = boundary_interval,
       long_period_i = long_period_i,
       component_weights = component_weights,
       route_prior = prepared_route_prior,
@@ -268,6 +280,7 @@ sampling_path_with_route_model <- function(
       warmup = warmup,
       thin = thin,
       block_interval = block_interval,
+      boundary_interval = boundary_interval,
       long_period_i = long_period_i,
       component_weights = component_weights,
       route_prior = prepared_route_prior,
@@ -378,6 +391,7 @@ sampling_path_with_route_model <- function(
     thin = thin,
     refresh = refresh,
     block_interval = block_interval,
+    boundary_interval = boundary_interval,
     long_period_light_only = long_period_light_only,
     n_light_only_long_periods = length(long_period_i),
     n_repair_iterations = n_repair_iterations,
@@ -461,6 +475,10 @@ sampling_path_with_route_model <- function(
 #'   current residence segment as a single block. All other iterations are
 #'   site iterations that update each eligible period once. Use `0` or `Inf` to
 #'   disable block iterations; values must otherwise be at least `2`.
+#' @param boundary_interval interval between boundary sweeps, which resample
+#'   the date of every boundary between consecutive residence segments while
+#'   keeping both locations. A sweep runs after the site or block update of
+#'   every `boundary_interval`-th iteration. Use `0` or `Inf` to disable them.
 #' @param thr_likelihood retained light-likelihood mass in each stationary
 #'   period. Lower values keep fewer cells and speed up the sampler, but exclude
 #'   more of the light likelihood surface entirely. The default `0.99` is a
@@ -587,6 +605,7 @@ sampling_path <- function(
   warmup = floor(iter / 4),
   thin = 1,
   block_interval = 2,
+  boundary_interval = 0,
   thr_likelihood = 0.99,
   thr_gs = 2000 / 24,
   refresh = 10,
@@ -606,6 +625,7 @@ sampling_path <- function(
     warmup = warmup,
     thin = thin,
     block_interval = block_interval,
+    boundary_interval = boundary_interval,
     thr_likelihood = thr_likelihood,
     thr_gs = thr_gs,
     refresh = refresh,
@@ -654,6 +674,7 @@ sampling_path_run_chain <- function(
   warmup,
   thin,
   block_interval,
+  boundary_interval,
   long_period_i,
   component_weights,
   route_prior,
@@ -683,6 +704,8 @@ sampling_path_run_chain <- function(
       route_prior$intervals$end_i
     ))
   }
+
+  boundary_fixed <- seq_len(nstap) %in% block_excluded_i
 
   # Initialize the path so every adjacent stap is movement-feasible before the
   # stochastic iterations start.
@@ -828,6 +851,30 @@ sampling_path_run_chain <- function(
       }
     }
 
+    # Boundary sweeps resample when segments change, not where they are.
+    if (
+      boundary_interval > 0L &&
+        iter_i %% boundary_interval == 0L &&
+        nstap > 1L
+    ) {
+      path_idx <- sampling_path_update_boundary(
+        path_idx = path_idx,
+        fixed = boundary_fixed,
+        lk = lk,
+        kt = kt,
+        component_weights = component_weights
+      )
+      if (!is.null(route_edge_distance)) {
+        route_distance <- sampling_path_route_distance_state(
+          path_idx,
+          kt,
+          route_prior
+        )
+        route_edge_distance <- route_distance$edge
+        route_interval_distance <- route_distance$interval
+      }
+    }
+
     if (iter_i > warmup && ((iter_i - warmup) %% thin == 0L)) {
       save_idx <- save_idx + 1L
       samples[save_idx, ] <- path_idx
@@ -970,6 +1017,82 @@ sampling_path_update_block <- function(
   sampled_idx <- state_next$idx[sampling_path_sample_prob(prob)]
 
   sampled_idx
+}
+
+#' Update Residence-Segment Boundaries
+#'
+#' @description
+#' Internal Gibbs sweep used by `sampling_path_run_chain()`. Each boundary
+#' between two consecutive residence segments is resampled over every position
+#' that keeps both segments non-empty and fixed periods on their current cell.
+#' Both cells, and hence the number of segments, are unchanged. Only the light
+#' likelihood of the reassigned periods and the residence-dependent departure
+#' terms of the two segments depend on the position: the movement kernel
+#' between the two cells is shared, and fixed long periods keep the move inside
+#' one route interval, so the route prior cancels.
+#'
+#' @param fixed logical vector flagging periods that keep their cell.
+#' @return Integer vector of path indices.
+#' @noRd
+sampling_path_update_boundary <- function(
+  path_idx,
+  fixed,
+  lk,
+  kt,
+  component_weights
+) {
+  nstap <- length(path_idx)
+  # log_stay[L]: staying through a segment of L periods; log_move[L]: leaving it.
+  log_stay <- c(0, cumsum(log1p(-kt$move_probability)))
+  log_move <- log(kt$move_probability)
+  n_boundary <- sum(path_idx[-1L] != path_idx[-nstap])
+
+  for (boundary_i in seq_len(n_boundary)) {
+    t <- which(path_idx[-1L] != path_idx[-nstap])[boundary_i]
+    s <- t
+    while (s > 1L && path_idx[s - 1L] == path_idx[t]) {
+      s <- s - 1L
+    }
+    u <- t + 1L
+    while (u < nstap && path_idx[u + 1L] == path_idx[t + 1L]) {
+      u <- u + 1L
+    }
+    window <- s:u
+    cell <- path_idx[c(t, t + 1L)]
+
+    # Light of every window period at either cell, cumulated from each side.
+    light <- vapply(
+      window,
+      function(i) lk[[i]]$log_prob[match(cell, lk[[i]]$idx)],
+      numeric(2)
+    )
+    light[is.na(light)] <- -Inf
+    end_1 <- s:(u - 1L)
+    len_1 <- end_1 - s + 1L
+    len_2 <- u - end_1
+    light_prob <- cumsum(light[1L, ])[len_1] +
+      rev(cumsum(rev(light[2L, ])))[len_1 + 1L]
+    move_prob <- log_stay[len_1] +
+      log_move[len_1] +
+      log_stay[len_2] +
+      if (u < nstap) log_move[len_2] else 0
+
+    log_prob <- sampling_path_weight_log_prob(
+      light_prob,
+      component_weights[["light"]]
+    ) +
+      sampling_path_weight_log_prob(move_prob, component_weights[["movement"]])
+    fixed_i <- window[fixed[window]]
+    log_prob[
+      end_1 < max(s, fixed_i[path_idx[fixed_i] == cell[1L]]) |
+        end_1 >= min(u, fixed_i[path_idx[fixed_i] == cell[2L]])
+    ] <- -Inf
+
+    new_end <- end_1[sampling_path_sample_prob(exp(log_prob - max(log_prob)))]
+    path_idx[window] <- rep(cell, c(new_end - s + 1L, u - new_end))
+  }
+
+  path_idx
 }
 
 #' Update One Site

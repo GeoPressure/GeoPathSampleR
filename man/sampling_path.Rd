@@ -16,6 +16,7 @@ sampling_path(
   warmup = floor(iter/4),
   thin = 1,
   block_interval = 2,
+  boundary_interval = 0,
   thr_likelihood = 0.99,
   thr_gs = 2000/24,
   refresh = 10,
@@ -66,6 +67,11 @@ route information like daily periods. See Details.}
 current residence segment as a single block. All other iterations are
 site iterations that update each eligible period once. Use \code{0} or \code{Inf} to
 disable block iterations; values must otherwise be at least \code{2}.}
+
+\item{boundary_interval}{interval between boundary sweeps, which resample
+the date of every boundary between consecutive residence segments while
+keeping both locations. A sweep runs after the site or block update of
+every \code{boundary_interval}-th iteration. Use \code{0} or \code{Inf} to disable them.}
 
 \item{thr_likelihood}{retained light-likelihood mass in each stationary
 period. Lower values keep fewer cells and speed up the sampler, but exclude
