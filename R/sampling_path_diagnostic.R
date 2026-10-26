@@ -131,16 +131,21 @@ sampling_path_diagnostic <- function(
   out$iteration <- do.call(
     rbind,
     lapply(seq_along(checkpoint_n), function(i) {
-      checkpoint <- sampling_path_diagnostic_compute(
-        paths[paths$j <= saved_j[checkpoint_n[i]], , drop = FALSE],
-        stap,
-        spatial = FALSE,
-        sample_summary = out$sample_summary[
-          out$sample_summary$j <= saved_j[checkpoint_n[i]],
-          ,
-          drop = FALSE
-        ]
-      )
+      # The full checkpoint equals the main computation.
+      checkpoint <- if (checkpoint_n[i] == length(saved_j)) {
+        out
+      } else {
+        sampling_path_diagnostic_compute(
+          paths[paths$j <= saved_j[checkpoint_n[i]], , drop = FALSE],
+          stap,
+          spatial = FALSE,
+          sample_summary = out$sample_summary[
+            out$sample_summary$j <= saved_j[checkpoint_n[i]],
+            ,
+            drop = FALSE
+          ]
+        )
+      }
       sampling_path_diagnostic_checkpoint(
         checkpoint,
         checkpoint_label[i],

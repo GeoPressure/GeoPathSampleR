@@ -75,6 +75,7 @@ sampling_path_with_route_model <- function(
   warmup = floor(iter / 4),
   thin = 1,
   block_interval = 2,
+  boundary_interval = 1,
   thr_likelihood = 0.99,
   thr_gs = 2000 / 24,
   refresh = 10,
@@ -118,6 +119,11 @@ sampling_path_with_route_model <- function(
       block_interval >= 2,
     is.infinite(block_interval) ||
       block_interval == floor(block_interval),
+    is.numeric(boundary_interval),
+    length(boundary_interval) == 1,
+    boundary_interval >= 0,
+    is.infinite(boundary_interval) ||
+      boundary_interval == floor(boundary_interval),
     iter > warmup,
     is.null(seed) ||
       (is.numeric(seed) && length(seed) == 1 && seed == floor(seed)),
@@ -141,7 +147,20 @@ sampling_path_with_route_model <- function(
   } else {
     block_interval <- as.integer(block_interval)
   }
+  boundary_interval <- if (is.infinite(boundary_interval)) {
+    0L
+  } else {
+    as.integer(boundary_interval)
+  }
   workers <- min(as.integer(workers), chains)
+
+  # Each transition is one daily step, so excluded periods cannot be bridged.
+  if (!all(tag$stap$include %||% TRUE)) {
+    cli::cli_abort(c(
+      "Excluded stationary periods are not supported: {.field stap$include} is {.val FALSE} for stap_id {.val {tag$stap$stap_id[!tag$stap$include]}}.",
+      "i" = "Re-run {.fun GeoPressureR::tag_set_map} without {.arg include_stap_id} or {.arg include_min_duration}."
+    ))
+  }
 
   prep <- sampling_path_prepare(
     tag = tag,
@@ -195,7 +214,6 @@ sampling_path_with_route_model <- function(
   use_parallel <- workers > 1L && chains > 1L && .Platform$OS.type != "windows"
   progress_bar <- NULL
   progress_closed <- FALSE
-  progress_pos <- 0L
   progress_fn <- NULL
 
   if (!quiet) {
@@ -221,8 +239,10 @@ sampling_path_with_route_model <- function(
       add = TRUE
     )
     progress_fn <- function(amount) {
-      progress_pos <<- progress_pos + amount
-      utils::setTxtProgressBar(progress_bar, progress_pos)
+      utils::setTxtProgressBar(
+        progress_bar,
+        utils::getTxtProgressBar(progress_bar) + amount
+      )
     }
   }
 
@@ -240,6 +260,7 @@ sampling_path_with_route_model <- function(
       warmup = warmup,
       thin = thin,
       block_interval = block_interval,
+      boundary_interval = boundary_interval,
       long_period_i = long_period_i,
       component_weights = component_weights,
       route_prior = prepared_route_prior,
@@ -259,6 +280,7 @@ sampling_path_with_route_model <- function(
       warmup = warmup,
       thin = thin,
       block_interval = block_interval,
+      boundary_interval = boundary_interval,
       long_period_i = long_period_i,
       component_weights = component_weights,
       route_prior = prepared_route_prior,
@@ -369,6 +391,7 @@ sampling_path_with_route_model <- function(
     thin = thin,
     refresh = refresh,
     block_interval = block_interval,
+    boundary_interval = boundary_interval,
     long_period_light_only = long_period_light_only,
     n_light_only_long_periods = length(long_period_i),
     n_repair_iterations = n_repair_iterations,
@@ -423,7 +446,8 @@ sampling_path_with_route_model <- function(
 #'
 #' @param tag GeoPressureR tag object containing likelihood maps and
 #'   `tag_set_map` parameters. Long periods are identified by `tag$stap$stap0`,
-#'   as created by [GeoPressureR::tag_stap_daily()].
+#'   as created by [GeoPressureR::tag_stap_daily()]. All stationary periods must
+#'   be included; excluded periods cannot be bridged by daily transitions.
 #' @param iter number of Gibbs iterations per chain, including `warmup`.
 #' @param likelihood tag field containing the light likelihood map.
 #' @param movement daily movement model: a ground-speed kernel passed to
@@ -452,6 +476,12 @@ sampling_path_with_route_model <- function(
 #'   current residence segment as a single block. All other iterations are
 #'   site iterations that update each eligible period once. Use `0` or `Inf` to
 #'   disable block iterations; values must otherwise be at least `2`.
+#' @param boundary_interval interval between boundary sweeps, which resample
+#'   the date of every boundary between consecutive residence segments while
+#'   keeping both locations. A sweep runs after the site or block update of
+#'   every `boundary_interval`-th iteration. The default `1` sweeps every
+#'   iteration; use `0` or `Inf` to disable them. Otherwise use a positive
+#'   integer. See Details for the conditional update.
 #' @param thr_likelihood retained light-likelihood mass in each stationary
 #'   period. Lower values keep fewer cells and speed up the sampler, but exclude
 #'   more of the light likelihood surface entirely. The default `0.99` is a
@@ -486,16 +516,18 @@ sampling_path_with_route_model <- function(
 #' where \eqn{T_\ell} is the interval duration in days and \eqn{D_\ell} is in
 #' km. Both covariates are clamped to the range of the calibration data. The
 #' term is omitted when \eqn{D_\ell < 300} km or when the interval contains at
-#' most one daily displacement.
+#' most one non-zero daily displacement.
 #'
 #' Because `route_detour` multiplies the Gamma scale, the prior mean and every
 #' prior quantile of the route excess \eqn{R_\ell - 1} scale linearly with it.
 #' For example, an interval of about 31 days with endpoints about 3,500 km
 #' apart has \eqn{\theta_\ell \approx 0.15}, i.e. a prior mean route ratio of
 #' about 1.19; `route_detour = 2` raises it to about 1.37 and `0.5` lowers it
-#' to about 1.09. `route_detour = 0` collapses the scale, so any detour is
-#' strongly penalised. The prior remains soft: the realised detour of the
-#' posterior also depends on the light and movement components.
+#' to about 1.09. `route_detour = 0` uses machine epsilon as the scale, so any
+#' detour is strongly penalised. Route excess is also floored at machine
+#' epsilon when evaluating the log density. The prior remains soft: the
+#' realised detour of the posterior also depends on the light and movement
+#' components.
 #'
 #' **Long periods and modular cut.** Twilights accurately locate long periods
 #' but leave daily-period locations ambiguous. With
@@ -509,6 +541,27 @@ sampling_path_with_route_model <- function(
 #' information flows from the long-period likelihoods to the daily path, but
 #' the movement model cannot pull long-period locations away from their light
 #' likelihood. Known-location periods are always fixed.
+#'
+#' **Site, block and boundary updates.** By default, odd iterations update
+#' each eligible period separately and even iterations update each current
+#' residence segment at one shared location (`block_interval = 2`). Site
+#' sweeps alternate forwards and backwards. Block updates use the intersection
+#' of the periods' retained light supports and cannot span a long period when
+#' the route prior is active or include a long period drawn from light alone.
+#'
+#' After either update, `boundary_interval = 1` adds a forward sweep over the
+#' boundaries between consecutive residence segments. Each boundary is drawn
+#' over all positions within its two segments that keep both non-empty,
+#' retain their two locations, respect each period's light support, and keep
+#' fixed periods at their current location. This changes departure and arrival
+#' timing without changing the number or sequence of residence segments.
+#' Candidate positions are weighted by the light likelihood and
+#' residence-dependent departure terms, with `component_weights` applied.
+#' The transition between the two locations is unchanged, and fixed
+#' long-period endpoints keep cumulative distance within each route interval
+#' unchanged, so the movement kernel and route prior cancel in this update.
+#' Boundary sweeps run during warmup as well as sampling, before draws are
+#' saved. Their frequency changes the update schedule, not the target model.
 #'
 #' **Computational approximations.** Impossible geography, such as water after
 #' masking, is removed from the state space. The arguments `thr_likelihood`,
@@ -578,6 +631,7 @@ sampling_path <- function(
   warmup = floor(iter / 4),
   thin = 1,
   block_interval = 2,
+  boundary_interval = 1,
   thr_likelihood = 0.99,
   thr_gs = 2000 / 24,
   refresh = 10,
@@ -597,6 +651,7 @@ sampling_path <- function(
     warmup = warmup,
     thin = thin,
     block_interval = block_interval,
+    boundary_interval = boundary_interval,
     thr_likelihood = thr_likelihood,
     thr_gs = thr_gs,
     refresh = refresh,
@@ -645,6 +700,7 @@ sampling_path_run_chain <- function(
   warmup,
   thin,
   block_interval,
+  boundary_interval,
   long_period_i,
   component_weights,
   route_prior,
@@ -674,6 +730,8 @@ sampling_path_run_chain <- function(
       route_prior$intervals$end_i
     ))
   }
+
+  boundary_fixed <- seq_len(nstap) %in% block_excluded_i
 
   # Initialize the path so every adjacent stap is movement-feasible before the
   # stochastic iterations start.
@@ -819,6 +877,30 @@ sampling_path_run_chain <- function(
       }
     }
 
+    # Boundary sweeps resample when segments change, not where they are.
+    if (
+      boundary_interval > 0L &&
+        iter_i %% boundary_interval == 0L &&
+        nstap > 1L
+    ) {
+      path_idx <- sampling_path_update_boundary(
+        path_idx = path_idx,
+        fixed = boundary_fixed,
+        lk = lk,
+        kt = kt,
+        component_weights = component_weights
+      )
+      if (!is.null(route_edge_distance)) {
+        route_distance <- sampling_path_route_distance_state(
+          path_idx,
+          kt,
+          route_prior
+        )
+        route_edge_distance <- route_distance$edge
+        route_interval_distance <- route_distance$interval
+      }
+    }
+
     if (iter_i > warmup && ((iter_i - warmup) %% thin == 0L)) {
       save_idx <- save_idx + 1L
       samples[save_idx, ] <- path_idx
@@ -932,9 +1014,10 @@ sampling_path_update_block <- function(
       )
   }
 
-  state_next$log_prob <- state_next$log_prob +
+  feasible <- which(is.finite(state_next$log_prob))
+  state_next$log_prob[feasible] <- state_next$log_prob[feasible] +
     sampling_path_route_log_prior(
-      candidate_idx = state_next$idx,
+      candidate_idx = state_next$idx[feasible],
       path_idx = path_idx,
       replace_i = block_start:block_end,
       kt = kt,
@@ -960,6 +1043,88 @@ sampling_path_update_block <- function(
   sampled_idx <- state_next$idx[sampling_path_sample_prob(prob)]
 
   sampled_idx
+}
+
+#' Update Residence-Segment Boundaries
+#'
+#' @description
+#' Internal Gibbs sweep used by `sampling_path_run_chain()`. Each boundary
+#' between two consecutive residence segments is resampled over every position
+#' that keeps both segments non-empty and fixed periods on their current cell.
+#' Both cells, and hence the number of segments, are unchanged. Only the light
+#' likelihood of the reassigned periods and the residence-dependent departure
+#' terms of the two segments depend on the position: the movement kernel
+#' between the two cells is shared, and fixed long periods keep the move inside
+#' one route interval, so the route prior cancels.
+#'
+#' @param fixed logical vector flagging periods that keep their cell.
+#' @return Integer vector of path indices.
+#' @noRd
+sampling_path_update_boundary <- function(
+  path_idx,
+  fixed,
+  lk,
+  kt,
+  component_weights
+) {
+  nstap <- length(path_idx)
+  # log_stay[L]: staying through a segment of L periods; log_move[L]: leaving it.
+  log_stay <- c(0, cumsum(log1p(-kt$move_probability)))
+  log_move <- log(kt$move_probability)
+  n_boundary <- sum(path_idx[-1L] != path_idx[-nstap])
+
+  for (boundary_i in seq_len(n_boundary)) {
+    t <- which(path_idx[-1L] != path_idx[-nstap])[boundary_i]
+    s <- t
+    while (s > 1L && path_idx[s - 1L] == path_idx[t]) {
+      s <- s - 1L
+    }
+    u <- t + 1L
+    while (u < nstap && path_idx[u + 1L] == path_idx[t + 1L]) {
+      u <- u + 1L
+    }
+    window <- s:u
+    cell <- path_idx[c(t, t + 1L)]
+
+    # Light of every window period at either cell, cumulated from each side.
+    # Supports are sorted, so findInterval() avoids hashing large supports.
+    light <- vapply(
+      window,
+      function(i) {
+        pos <- pmax(
+          findInterval(cell, lk[[i]]$idx, checkSorted = FALSE, checkNA = FALSE),
+          1L
+        )
+        ifelse(lk[[i]]$idx[pos] == cell, lk[[i]]$log_prob[pos], -Inf)
+      },
+      numeric(2)
+    )
+    end_1 <- s:(u - 1L)
+    len_1 <- end_1 - s + 1L
+    len_2 <- u - end_1
+    light_prob <- cumsum(light[1L, ])[len_1] +
+      rev(cumsum(rev(light[2L, ])))[len_1 + 1L]
+    move_prob <- log_stay[len_1] +
+      log_move[len_1] +
+      log_stay[len_2] +
+      if (u < nstap) log_move[len_2] else 0
+
+    log_prob <- sampling_path_weight_log_prob(
+      light_prob,
+      component_weights[["light"]]
+    ) +
+      sampling_path_weight_log_prob(move_prob, component_weights[["movement"]])
+    fixed_i <- window[fixed[window]]
+    log_prob[
+      end_1 < max(s, fixed_i[path_idx[fixed_i] == cell[1L]]) |
+        end_1 >= min(u, fixed_i[path_idx[fixed_i] == cell[2L]])
+    ] <- -Inf
+
+    new_end <- end_1[sampling_path_sample_prob(exp(log_prob - max(log_prob)))]
+    path_idx[window] <- rep(cell, c(new_end - s + 1L, u - new_end))
+  }
+
+  path_idx
 }
 
 #' Update One Site
@@ -1006,9 +1171,11 @@ sampling_path_update_site <- function(
       ),
       component_weights[["movement"]]
     )
-  state$log_prob <- state$log_prob +
+  # The route prior cannot revive candidates excluded by hard support.
+  feasible <- which(is.finite(state$log_prob))
+  state$log_prob[feasible] <- state$log_prob[feasible] +
     sampling_path_route_log_prior(
-      candidate_idx = state$idx,
+      candidate_idx = state$idx[feasible],
       path_idx = path_idx,
       replace_i = stap_i,
       kt = kt,
@@ -1559,7 +1726,8 @@ sampling_path_route_log_prior <- function(
   )
 
   for (interval_i in affected_interval) {
-    interval <- route_prior$intervals[interval_i, ]
+    interval_start_i <- route_prior$intervals$start_i[interval_i]
+    interval_end_i <- route_prior$intervals$end_i[interval_i]
     edge_i <- route_prior$interval_edges[[interval_i]]
     current_edge_distance <- if (is.null(route_edge_distance)) {
       sampling_path_index_distance_km(
@@ -1609,15 +1777,15 @@ sampling_path_route_log_prior <- function(
       n_move_days <- n_move_days + (candidate_edge_distance > 0)
     }
 
-    start_idx <- if (interval$start_i %in% replace_i) {
+    start_idx <- if (interval_start_i %in% replace_i) {
       candidate_idx
     } else {
-      path_idx[interval$start_i]
+      path_idx[interval_start_i]
     }
-    end_idx <- if (interval$end_i %in% replace_i) {
+    end_idx <- if (interval_end_i %in% replace_i) {
       candidate_idx
     } else {
-      path_idx[interval$end_i]
+      path_idx[interval_end_i]
     }
     direct_distance <- sampling_path_index_distance_km(
       start_idx,
@@ -1629,9 +1797,14 @@ sampling_path_route_log_prior <- function(
       is.finite(direct_distance) &
       direct_distance >= route_prior$min_direct_distance_km &
       n_move_days > 1L
-    route_ratio <- pmax(route_distance / direct_distance, 1)
+    # Floor the excess so exactly straight grid routes (e.g. along one column)
+    # keep the continuous limit of the density instead of a zero-density cliff.
+    route_excess <- pmax(
+      route_distance / direct_distance - 1,
+      .Machine$double.eps
+    )
     support_covariates <- sampling_path_route_support_projection(
-      interval$duration_days,
+      route_prior$intervals$duration_days[interval_i],
       direct_distance,
       route_prior$support %||% NULL
     )
@@ -1641,16 +1814,18 @@ sampling_path_route_log_prior <- function(
         (support_covariates$duration_log - route_prior$duration_center) +
       route_prior$distance_coefficient *
         (support_covariates$distance_log - route_prior$distance_center)
-    log_density <- stats::dgamma(
-      route_ratio - 1,
-      shape = route_prior$gamma_shape,
-      scale = pmax(
-        (route_prior$detour %||% 1) * exp(linear_predictor),
-        .Machine$double.eps
-      ),
-      log = TRUE
+    # Closed-form Gamma log density: much cheaper than stats::dgamma().
+    scale <- pmax(
+      (route_prior$detour %||% 1) * exp(linear_predictor),
+      .Machine$double.eps
     )
-    log_density <- rep_len(log_density, length(route_ratio))
+    shape <- route_prior$gamma_shape
+    log_density <- (shape - 1) *
+      log(route_excess) -
+      route_excess / scale -
+      lgamma(shape) -
+      shape * log(scale)
+    log_density <- rep_len(log_density, length(route_excess))
     log_density[!is.finite(log_density)] <- log(.Machine$double.xmin)
     out[apply_prior] <- out[apply_prior] + log_density[apply_prior]
   }
@@ -1701,17 +1876,12 @@ sampling_path_route_support_projection <- function(
 #' @return Numeric distance in kilometres.
 #' @noRd
 sampling_path_index_distance_km <- function(from_idx, to_idx, kt) {
-  n <- max(length(from_idx), length(to_idx))
-  from_idx <- rep_len(from_idx, n)
-  to_idx <- rep_len(to_idx, n)
+  # A scalar endpoint recycles in the arithmetic instead of being replicated.
   from_row <- (from_idx - 1L) %% kt$nrow + 1L
   to_row <- (to_idx - 1L) %% kt$nrow + 1L
-  from_lat <- kt$lat_rad[from_row]
-  to_lat <- kt$lat_rad[to_row]
-  from_lon <- kt$lon_rad[(from_idx - 1L) %/% kt$nrow + 1L]
-  to_lon <- kt$lon_rad[(to_idx - 1L) %/% kt$nrow + 1L]
-  dlat <- to_lat - from_lat
-  dlon <- to_lon - from_lon
+  dlat <- kt$lat_rad[to_row] - kt$lat_rad[from_row]
+  dlon <- kt$lon_rad[(to_idx - 1L) %/% kt$nrow + 1L] -
+    kt$lon_rad[(from_idx - 1L) %/% kt$nrow + 1L]
   a <- sin(dlat / 2)^2 +
     kt$cos_lat[from_row] * kt$cos_lat[to_row] * sin(dlon / 2)^2
   2 * 6378.137 * atan2(sqrt(pmin(a, 1)), sqrt(pmax(1 - a, 0)))
@@ -1833,27 +2003,26 @@ sampling_path_transition_log_prob <- function(
   kt
 ) {
   kernel <- kt$movement_kernel
-  n <- max(length(source_idx), length(destination_idx))
-  source_idx <- rep_len(source_idx, n)
-  destination_idx <- rep_len(destination_idx, n)
+  # A scalar endpoint recycles in the arithmetic instead of being replicated.
   source_row <- kt$cell_row[source_idx]
   drow <- kt$cell_row[destination_idx] - source_row
   dcol <- kt$cell_col[destination_idx] - kt$cell_col[source_idx]
-  out <- rep(-Inf, n)
   move_pos <- source_idx != destination_idx &
     abs(drow) <= kernel$max_drow &
     abs(dcol) <= kernel$max_dcol &
     kt$struct_mask[destination_idx]
+  out <- rep(-Inf, length(move_pos))
 
   move_i <- which(move_pos)
-  lookup_idx <- source_row[move_i] +
-    (drow[move_i] + kernel$max_drow) * kt$nrow +
-    (dcol[move_i] + kernel$max_dcol) * kt$nrow * kernel$lookup_ndrow
+  lookup_idx <- (source_row +
+    (drow + kernel$max_drow) * kt$nrow +
+    (dcol + kernel$max_dcol) * kt$nrow * kernel$lookup_ndrow)[move_i]
   move_log_prob <- kernel$move_log_lookup[lookup_idx]
   finite_move <- is.finite(move_log_prob)
   move_i <- move_i[finite_move]
+  move_log_norm <- kernel$move_log_norm[source_idx]
   out[move_i] <- move_log_prob[finite_move] -
-    kernel$move_log_norm[source_idx[move_i]]
+    if (length(move_log_norm) == 1L) move_log_norm else move_log_norm[move_i]
 
   out
 }

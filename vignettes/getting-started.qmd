@@ -32,7 +32,7 @@ knitr::opts_knit$set(
 
 ### Set-up your project folder
 
-We recommend using GeoPressureTemplate as the starting point for your analysis. It provides a folder structure where all files for the analysis have their standardized location. Check the instruction on the [dedicated GeoPressureManual chapter](https://geopressure.org/GeoPressureManual/geopressuretemplate-intro.html).
+We recommend using GeoPressureTemplate as the starting point for your analysis. It provides a folder structure where all files for the analysis have their standardised location. Check the instructions in the [dedicated GeoPressureManual chapter](https://geopressure.org/GeoPressureManual/geopressuretemplate-intro.html).
 
 Here, we use the `14OI` example contained in the GeoPathSampleR package. The vignette working directory is set to the package's `extdata` folder, so GeoPressureR can use its standard relative paths.
 
@@ -162,7 +162,7 @@ plot_twl_calib(tag)
 ```
 
 ### Add the water mask
-For landbird, a water mask removes cells from the set of locations that can be sampled.
+For land birds, a water mask removes cells from the set of locations that can be sampled.
 
 ```{r}
 tag$map_light <- map_add_mask_water(tag$map_light)
@@ -177,7 +177,7 @@ The movement model implemented in `sampling_path()` combines three sources of in
 
 - The light likelihood describes where each stationary period could be located. 
 - The movement model describes plausible speeds and the probability of departing after a given residence time. 
-- The route-length prior provides information about the expected detour of long intervals between stationary periods.
+- The prior on the route-distance ratio describes cumulative travel relative to direct endpoint distance between consecutive long periods.
 
 ### Defining parameters
 
@@ -188,7 +188,7 @@ The movement model defines the daily transition between consecutive stationary p
 - A ground-speed kernel (`method`, `shape`, `scale`, `low_speed_fix`, `zero_speed_ratio`), evaluated with `GeoPressureR::speed2prob()`. Speed is the displacement between two consecutive periods divided by 24 h. The default is a Gamma distribution with shape `1.26` and scale `10.3` km/h.
 - A residence-dependent departure probability `move_stay(t)`, where `t` is the number of consecutive days already spent at the current location. The default declines exponentially from `p_0 = 0.607` just after arrival to a plateau `p_inf = 0.137` with time constant `tau = 0.932` days. `move_stay_parameters` only stores these values for `plot_movement()`; the sampler uses `move_stay`.
 
-The default `movement` argument of `sampling_path()` is `sampling_path_default_movement()`, calibrated on multi-sensor tracks of land birds. We write it out below to show its structure; `movement <- sampling_path_default_movement()` gives the same list. See `?sampling_path_default_movement` for details.
+The default `movement` argument of `sampling_path()` is `sampling_path_default_movement()`, calibrated on multi-sensor reference trajectories of land birds. We write it out below to show its structure; `movement <- sampling_path_default_movement()` gives the same list. See `?sampling_path_default_movement` for details.
 
 ```{r}
 movement <- list(
@@ -212,8 +212,8 @@ plot_movement(movement)
 The other arguments of `sampling_path()` that change the scientific model are:
 
 - `component_weights = c(light = 1, movement = 1, route = 1)` uses each component without rescaling. Each weight scales that component's log probability, so changing even all three weights by the same factor changes the sampled distribution. Setting a weight to zero removes that component's soft contribution while retaining hard support constraints; use this only for an explicit sensitivity analysis.
-- `route_detour = 1` keeps the calibrated route prior. The value multiplies the expected excess route distance (route length over direct distance, minus one) between consecutive long periods. For instance, for a prior mean route is 19% longer than direct; `2` doubles this excess, `0.5` halves it and `0` favours direct routes.
-- `long_period_light_only = TRUE` applies a modular cut: unknown long-period locations are drawn from their light likelihood alone, and movement only informs the daily periods between them. `FALSE` lets movement also update long periods.
+- `route_detour = 1` keeps the calibrated route prior. The value multiplies the expected excess route distance (route length over direct distance, minus one) between consecutive long periods. For an interval of about 31 days with endpoints about 3,500 km apart, the prior mean route is about 19% longer than direct; `2` doubles this excess, `0.5` halves it and `0` strongly penalises detours. The prior applies only when endpoints are at least 300 km apart and the trajectory contains at least two non-zero daily displacements.
+- `long_period_light_only = TRUE` applies a modular cut: unknown long-period locations are drawn from their light likelihood alone, and movement only informs the daily periods between them. `FALSE` lets the movement and route components also update unknown long periods. Known locations remain fixed.
 
 #### Computational controls
 
@@ -225,15 +225,18 @@ The following arguments control computation and diagnostics rather than the scie
 | `warmup` | `floor(iter / 4)` | Initial iterations discarded while the chain reaches its typical posterior region. |
 | `thin` | `1` | Saving interval. The number saved is `floor((iter - warmup) / thin)`. Keep `1` unless storage is limiting; thinning does not improve mixing. |
 | `chains` | `1` | Number of independent chains. Use at least four for final inference. |
-| `block_interval` | `2` | Frequency of block updates, which move a whole stay at once. Keep the optimized default unless explicitly comparing sampler efficiency. |
+| `block_interval` | `2` | Every second iteration updates whole residence segments at shared locations; the others update individual periods. Use `0` or `Inf` to disable block iterations, or an integer of at least `2`. |
+| `boundary_interval` | `1` | Sweep over residence-segment boundaries after every site or block iteration to resample movement timing while retaining segment locations. Use `0` or `Inf` to disable sweeps, or a positive integer to run them less often. |
 | `thr_likelihood` | `0.99` | Retained light-likelihood mass used to reduce the state space. The conservative default is appropriate for final inference. |
 | `thr_gs` | `2000 / 24` | Hard truncation of the speed kernel, in km/h (2000 km per day). Speeds are already weighted by the movement model, so set it above the speeds the kernel supports rather than at typical speeds; the default excludes less than 0.1% of the default kernel. Larger values cost computation; smaller values forbid transitions outright. |
 | `workers` | `1` | Number of parallel workers for independent chains. Use `1` while debugging and increase only when appropriate for the system. |
 | `seed` | `NULL` | Random-number seed for reproducible chains. |
 
+All stationary periods must remain included in `tag_set_map()`: the sampler treats each transition as one daily step and cannot bridge excluded periods.
+
 ### First run
 
-The sampler uses Gibbs updates: it repeatedly updates one stationary-period location, or a block of locations, conditional on the current values of the other periods. The resulting draws are correlated, so the run must be long enough to explore the posterior and must be checked with multiple independent chains.
+The sampler uses Gibbs updates: it alternates individual-period and residence-segment location updates, then resamples the boundaries between consecutive segments. Each boundary update keeps both segments non-empty and their locations unchanged, and draws a new boundary from the light likelihood and residence-dependent departure probabilities. Known locations and long periods drawn from light alone remain fixed. The route-distance prior cancels because boundary shifts leave cumulative distance within each long-period interval unchanged. See `?sampling_path` for the full update schedule and constraints. The resulting draws are correlated, so the run must be long enough to explore the posterior and must be checked with multiple independent chains.
 
 Begin with a short run to verify that the likelihood, movement support, and route prior are compatible. This run is for checking the workflow, not for inference.
 

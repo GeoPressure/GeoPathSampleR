@@ -80,23 +80,31 @@ path_summary <- function(
   }
 
   if (by == "stap") {
+    row_by_stap <- split(
+      seq_len(nrow(paths)),
+      factor(paths$stap_id, levels = stap_id)
+    )
     out <- do.call(
       rbind,
-      lapply(stap_id, function(id) {
-        df <- paths[paths$stap_id == id, , drop = FALSE]
-        pos <- position_summary(df)
-        data.frame(
-          stap_id = id,
-          stap_id_start = id,
-          stap_id_end = id,
-          ind = as.integer(pos[["ind"]]),
-          lat = pos[["lat"]],
-          lon = pos[["lon"]],
-          start = stap$start[match(id, stap$stap_id)],
-          end = stap$end[match(id, stap$stap_id)],
-          n_path = length(unique(path_id[paths$stap_id == id]))
-        )
-      })
+      Map(
+        function(id, row_i) {
+          df <- paths[row_i, , drop = FALSE]
+          pos <- position_summary(df)
+          data.frame(
+            stap_id = id,
+            stap_id_start = id,
+            stap_id_end = id,
+            ind = as.integer(pos[["ind"]]),
+            lat = pos[["lat"]],
+            lon = pos[["lon"]],
+            start = stap$start[match(id, stap$stap_id)],
+            end = stap$end[match(id, stap$stap_id)],
+            n_path = length(unique(path_id[row_i]))
+          )
+        },
+        stap_id,
+        row_by_stap
+      )
     )
     row.names(out) <- NULL
     return(out)
@@ -114,11 +122,16 @@ path_summary <- function(
   group_start <- match(seq_len(max(group)), group)
   group_end <- c(group_start[-1L] - 1L, n_stap)
 
+  row_by_group <- split(
+    seq_len(nrow(paths)),
+    group[match(paths$stap_id, stap_id)]
+  )
+
   out <- do.call(
     rbind,
     lapply(seq_along(group_start), function(i) {
       ids <- stap_id[group_start[i]:group_end[i]]
-      df <- paths[paths$stap_id %in% ids, , drop = FALSE]
+      df <- paths[row_by_group[[i]], , drop = FALSE]
       pos <- position_summary(df)
       data.frame(
         stap_id = ids[1L],

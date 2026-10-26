@@ -45,12 +45,39 @@ sampling_path_prepare <- function(
     map$stap$stap_id[map$stap$include]
   )
 
+  # Pin known periods to the cell of their known location. A coastal site can
+  # fall on a water cell, which GeoPressureR replaces with a uniform land map;
+  # keep that cell in the structural domain so the path stays anchored.
+  included_stap <- which(map$stap$include)
+  known_i <- which(
+    !is.na(map$stap$known_lat[included_stap]) &
+      !is.na(map$stap$known_lon[included_stap])
+  )
+  known_idx <- vapply(
+    included_stap[known_i],
+    function(i) {
+      which.min(abs(g$lat - map$stap$known_lat[i])) +
+        (which.min(abs(g$lon - map$stap$known_lon[i])) - 1L) *
+          as.integer(g$dim[1])
+    },
+    integer(1)
+  )
+  struct_mask[known_idx] <- TRUE
+  lk[known_i] <- Map(
+    function(state, idx) {
+      state$idx <- idx
+      state$log_prob <- 0
+      state
+    },
+    lk[known_i],
+    known_idx
+  )
+
   # A likelihood concentrated on the outer grid edge can indicate that the map
   # extent truncated the light surface before sampler support was constructed.
   map_boundary <- matrix(FALSE, nrow = g$dim[1], ncol = g$dim[2])
   map_boundary[c(1L, g$dim[1]), ] <- TRUE
   map_boundary[, c(1L, g$dim[2])] <- TRUE
-  included_stap <- which(map$stap$include)
   unknown_stap <- is.na(map$stap$known_lat[included_stap]) |
     is.na(map$stap$known_lon[included_stap])
   boundary_mass <- vapply(

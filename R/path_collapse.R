@@ -11,7 +11,7 @@
 #' @param stap A stationary-period data frame containing `stap_id`, `start`,
 #'   and `end`. If `NULL`, these columns are taken from `paths`.
 #' @param label_stap_id logical; if `TRUE`, replace `stap_id` in the output
-#'   with a character label of the form `"{stap_id_start}->{stap_id_end}`.
+#'   with a character label of the form `"{stap_id_start}->{stap_id_end}"`.
 #'   The numeric `stap_id_start` and `stap_id_end` columns are always kept.
 #'
 #' @return A data frame with one row per collapsed stay and columns
