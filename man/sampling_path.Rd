@@ -28,7 +28,8 @@ sampling_path(
 \arguments{
 \item{tag}{GeoPressureR tag object containing likelihood maps and
 \code{tag_set_map} parameters. Long periods are identified by \code{tag$stap$stap0},
-as created by \code{\link[GeoPressureR:tag_stap_daily]{GeoPressureR::tag_stap_daily()}}.}
+as created by \code{\link[GeoPressureR:tag_stap_daily]{GeoPressureR::tag_stap_daily()}}. All stationary periods must
+be included; excluded periods cannot be bridged by daily transitions.}
 
 \item{iter}{number of Gibbs iterations per chain, including \code{warmup}.}
 
@@ -72,7 +73,8 @@ disable block iterations; values must otherwise be at least \code{2}.}
 the date of every boundary between consecutive residence segments while
 keeping both locations. A sweep runs after the site or block update of
 every \code{boundary_interval}-th iteration. The default \code{1} sweeps every
-iteration at a small cost; use \code{0} or \code{Inf} to disable them.}
+iteration; use \code{0} or \code{Inf} to disable them. Otherwise use a positive
+integer. See Details for the conditional update.}
 
 \item{thr_likelihood}{retained light-likelihood mass in each stationary
 period. Lower values keep fewer cells and speed up the sampler, but exclude
@@ -122,16 +124,18 @@ with shape \eqn{\alpha_R = 1.22} and
 where \eqn{T_\ell} is the interval duration in days and \eqn{D_\ell} is in
 km. Both covariates are clamped to the range of the calibration data. The
 term is omitted when \eqn{D_\ell < 300} km or when the interval contains at
-most one daily displacement.
+most one non-zero daily displacement.
 
 Because \code{route_detour} multiplies the Gamma scale, the prior mean and every
 prior quantile of the route excess \eqn{R_\ell - 1} scale linearly with it.
 For example, an interval of about 31 days with endpoints about 3,500 km
 apart has \eqn{\theta_\ell \approx 0.15}, i.e. a prior mean route ratio of
 about 1.19; \code{route_detour = 2} raises it to about 1.37 and \code{0.5} lowers it
-to about 1.09. \code{route_detour = 0} collapses the scale, so any detour is
-strongly penalised. The prior remains soft: the realised detour of the
-posterior also depends on the light and movement components.
+to about 1.09. \code{route_detour = 0} uses machine epsilon as the scale, so any
+detour is strongly penalised. Route excess is also floored at machine
+epsilon when evaluating the log density. The prior remains soft: the
+realised detour of the posterior also depends on the light and movement
+components.
 
 \strong{Long periods and modular cut.} Twilights accurately locate long periods
 but leave daily-period locations ambiguous. With
@@ -145,6 +149,27 @@ draws. This is a modular (cut) approximation to the joint posterior:
 information flows from the long-period likelihoods to the daily path, but
 the movement model cannot pull long-period locations away from their light
 likelihood. Known-location periods are always fixed.
+
+\strong{Site, block and boundary updates.} By default, odd iterations update
+each eligible period separately and even iterations update each current
+residence segment at one shared location (\code{block_interval = 2}). Site
+sweeps alternate forwards and backwards. Block updates use the intersection
+of the periods' retained light supports and cannot span a long period when
+the route prior is active or include a long period drawn from light alone.
+
+After either update, \code{boundary_interval = 1} adds a forward sweep over the
+boundaries between consecutive residence segments. Each boundary is drawn
+over all positions within its two segments that keep both non-empty,
+retain their two locations, respect each period's light support, and keep
+fixed periods at their current location. This changes departure and arrival
+timing without changing the number or sequence of residence segments.
+Candidate positions are weighted by the light likelihood and
+residence-dependent departure terms, with \code{component_weights} applied.
+The transition between the two locations is unchanged, and fixed
+long-period endpoints keep cumulative distance within each route interval
+unchanged, so the movement kernel and route prior cancel in this update.
+Boundary sweeps run during warmup as well as sampling, before draws are
+saved. Their frequency changes the update schedule, not the target model.
 
 \strong{Computational approximations.} Impossible geography, such as water after
 masking, is removed from the state space. The arguments \code{thr_likelihood},

@@ -14,7 +14,7 @@ path_collapse(paths, stap = NULL, label_stap_id = FALSE)
 and \code{end}. If \code{NULL}, these columns are taken from \code{paths}.}
 
 \item{label_stap_id}{logical; if \code{TRUE}, replace \code{stap_id} in the output
-with a character label of the form \verb{"\{stap_id_start\}->\{stap_id_end\}}.
+with a character label of the form \code{"{stap_id_start}->{stap_id_end}"}.
 The numeric \code{stap_id_start} and \code{stap_id_end} columns are always kept.}
 }
 \value{

@@ -1,6 +1,6 @@
 Package: GeoPathSampleR
 Title: Posterior Sampling of Geolocator Paths
-Version: 0.1.0.9000
+Version: 0.2.0
 Authors@R:
     person("Raphaël", "Nussbaumer", , "rafnuss@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-8185-1020"))

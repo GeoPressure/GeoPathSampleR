@@ -18,8 +18,10 @@ stationary-period likelihood maps built with GeoPressureR. Its Gibbs
 sampler combines residence-dependent departure, a ground-speed
 distribution conditional on movement, and a prior on cumulative route
 distance between long periods. Unknown long-period locations can be
-sampled from light evidence alone. The package also provides posterior
-stay summaries and sampling diagnostics.
+sampled from light evidence alone. Site and block updates sample
+locations, while boundary sweeps resample movement timing with segment
+locations held fixed. The package also provides posterior stay summaries
+and sampling diagnostics.
 
 ## 📦 Installation
 
