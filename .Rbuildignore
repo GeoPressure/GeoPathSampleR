@@ -12,3 +12,4 @@
 ^README\.Rmd$
 ^GeoTwilightR\.Rproj$
 ^codemeta\.json$
+^LICENSE$

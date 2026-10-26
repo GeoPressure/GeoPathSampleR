@@ -10,6 +10,8 @@
 
 ## Minor
 
+- Exclude the redundant repository GPL text from the R source package to resolve its package-check note.
+
 - [Fix known locations on water cells, stabilise the prior for direct routes, and reject excluded stationary periods](https://github.com/GeoPressure/GeoPathSampleR/commit/49e7735).
 - [Speed up route-prior evaluation, path summaries and diagnostics](https://github.com/GeoPressure/GeoPathSampleR/commit/6da2d15), and [avoid replicating scalar movement endpoints](https://github.com/GeoPressure/GeoPathSampleR/commit/0b989d1).
 - Document boundary sweeps, the complete sampler update schedule, route-prior support and computational controls in the function reference and getting-started vignette.
