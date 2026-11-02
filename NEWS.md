@@ -1,3 +1,8 @@
+# Development version
+
+- Recognise `stap_long` in sampling and diagnostic reports, with fallback to `stap0` for older tags.
+- Check tag consistency in sampling diagnostics and report unavailable convergence statistics without warnings.
+
 # GeoPathSampleR v0.2.0
 
 ## Main

@@ -251,7 +251,8 @@ sampling_path_diagnostic_compute <- function(
       names(stap)
   ))
 
-  stap0 <- stap$stap0 %||% rep(FALSE, nrow(stap))
+  # TODO: Remove the stap0 fallback when legacy tags no longer need support.
+  stap0 <- stap$stap_long %||% stap$stap0 %||% rep(FALSE, nrow(stap))
   sampled_stap <- stap[
     !(is.finite(stap$known_lat) & is.finite(stap$known_lon)),
     "stap_id",

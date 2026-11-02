@@ -176,7 +176,10 @@ sampling_path_with_route_model <- function(
   stap_ids <- vapply(lk, `[[`, numeric(1), "stap_id")
   nstap <- length(lk)
   stap_row <- match(stap_ids, tag$stap$stap_id)
-  stap0 <- tag$stap$stap0 %||% rep(FALSE, nrow(tag$stap))
+  # TODO: Remove the stap0 fallback when legacy tags no longer need support.
+  stap0 <- tag$stap$stap_long %||%
+    tag$stap$stap0 %||%
+    rep(FALSE, nrow(tag$stap))
   known_stap <- if (all(c("known_lat", "known_lon") %in% names(tag$stap))) {
     is.finite(tag$stap$known_lat[stap_row]) &
       is.finite(tag$stap$known_lon[stap_row])
@@ -1637,7 +1640,10 @@ sampling_path_prepare_route_prior <- function(
   }
 
   stap_row <- match(stap_ids, tag$stap$stap_id)
-  stap0 <- tag$stap$stap0 %||% rep(FALSE, nrow(tag$stap))
+  # TODO: Remove the stap0 fallback when legacy tags no longer need support.
+  stap0 <- tag$stap$stap_long %||%
+    tag$stap$stap0 %||%
+    rep(FALSE, nrow(tag$stap))
   long_period_i <- which(stap0[stap_row])
   if (length(long_period_i) < 2L) {
     return(NULL)

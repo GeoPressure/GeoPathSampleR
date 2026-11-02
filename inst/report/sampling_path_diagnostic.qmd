@@ -32,6 +32,8 @@ payload <- readRDS(params$diagnostic_file)
 diagnostic <- payload$diagnostic
 paths <- payload$paths
 stap <- payload$stap
+# TODO: Remove the stap0 fallback when legacy tags no longer need support.
+stap$stap_long <- stap$stap_long %||% stap$stap0 %||% rep(FALSE, nrow(stap))
 map_extent <- payload$map_extent %||% diagnostic$support$map_extent
 run_params <- diagnostic$sampler_params
 tag_id <- diagnostic$tag_id %||% "Sampling path"
@@ -121,7 +123,7 @@ trajectory_summary <- paths |>
   mutate(
     stap_type = case_when(
       is.finite(.data$known_lat) & is.finite(.data$known_lon) ~ "Known location",
-      .data$stap0 ~ "Long STAP",
+      .data$stap_long ~ "Long STAP",
       TRUE ~ "Daily STAP"
     ),
     hover = glue("STAP {stap_id}<br>{stap_type}<br>{as.Date(start)} to {as.Date(end)}")
