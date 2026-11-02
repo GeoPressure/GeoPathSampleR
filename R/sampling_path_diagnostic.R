@@ -121,6 +121,50 @@ sampling_path_diagnostic <- function(
   }
   stap <- tag$stap
   sampler_params <- attr(paths, "sampling_parameters") %||% list()
+  stap_row <- match(unique(paths$stap_id), stap$stap_id)
+  if (anyNA(stap_row) || nrow(stap) != length(stap_row)) {
+    cli::cli_abort(
+      "The stationary periods in {.arg tag} do not match {.arg paths}. Use the tag supplied to {.fun sampling_path}."
+    )
+  }
+  if (
+    !is.null(sampler_params$tag_id) &&
+      !identical(sampler_params$tag_id, tag$param$id)
+  ) {
+    cli::cli_abort(
+      "The tag ID does not match the tag used to sample {.arg paths}."
+    )
+  }
+  if (
+    !is.null(sampler_params$stap) &&
+      !isTRUE(all.equal(
+        sampler_params$stap,
+        stap[
+          match(sampler_params$stap$stap_id, stap$stap_id),
+          names(sampler_params$stap),
+          drop = FALSE
+        ],
+        check.attributes = FALSE
+      ))
+  ) {
+    cli::cli_abort(
+      "The stationary periods or known locations in {.arg tag} differ from those used to sample {.arg paths}."
+    )
+  }
+  path_row <- match(paths$stap_id, stap$stap_id)
+  known <- is.finite(stap$known_lat[path_row]) &
+    is.finite(stap$known_lon[path_row])
+  if (
+    any(
+      known &
+        (paths$lat != stap$known_lat[path_row] |
+          paths$lon != stap$known_lon[path_row])
+    )
+  ) {
+    cli::cli_abort(
+      "Known locations in {.arg tag} do not match {.arg paths}. Use the tag supplied to {.fun sampling_path}."
+    )
+  }
   out <- sampling_path_diagnostic_compute(paths, stap)
 
   saved_j <- sort(unique(paths$j))
@@ -439,6 +483,21 @@ sampling_path_diagnostic_print <- function(x) {
   )
   bulk_ess <- c(x$marginal$lat_ess_bulk, x$marginal$lon_ess_bulk)
   tail_ess <- c(x$marginal$lat_ess_tail, x$marginal$lon_ess_tail)
+  max_rhat <- if (any(is.finite(rhat))) {
+    signif(max(rhat[is.finite(rhat)]), 3)
+  } else {
+    "unavailable"
+  }
+  min_bulk <- if (any(is.finite(bulk_ess))) {
+    round(min(bulk_ess[is.finite(bulk_ess)]))
+  } else {
+    "unavailable"
+  }
+  min_tail <- if (any(is.finite(tail_ess))) {
+    round(min(tail_ess[is.finite(tail_ess)]))
+  } else {
+    "unavailable"
+  }
   ess_target <- 100 * x$n_chain
   support <- if (is.null(x$support)) {
     "not assessed (sampler settings unavailable)"
@@ -456,8 +515,8 @@ sampling_path_diagnostic_print <- function(x) {
   cli::cli_bullets(c(
     "Chains: {x$n_chain}; saved iterations per chain: {x$n_iter}",
     "Sampled staps: {nrow(x$marginal)} ({sum(x$marginal$stap_type == 'daily')} daily, {sum(x$marginal$stap_type == 'long')} long)",
-    "Maximum R-hat: {signif(max(rhat, na.rm = TRUE), 3)}; values above 1.05 need attention",
-    "Minimum bulk ESS: {round(min(bulk_ess, na.rm = TRUE))}; minimum tail ESS: {round(min(tail_ess, na.rm = TRUE))}; target: {ess_target}",
+    "Maximum R-hat: {max_rhat}; values above 1.05 need attention",
+    "Minimum bulk ESS: {min_bulk}; minimum tail ESS: {min_tail}; target: {ess_target}",
     "Computational support: {support}"
   ))
 }

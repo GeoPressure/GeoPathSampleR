@@ -385,6 +385,23 @@ sampling_path_with_route_model <- function(
   class(paths) <- c("sampling_path", "data.frame")
   attr(paths, "type") <- "sampling"
   attr(paths, "sampling_parameters") <- list(
+    tag_id = tag$param$id,
+    stap = tag$stap[
+      stap_row,
+      intersect(
+        c(
+          "stap_id",
+          "start",
+          "end",
+          "known_lat",
+          "known_lon",
+          "stap_long",
+          "stap0"
+        ),
+        names(tag$stap)
+      ),
+      drop = FALSE
+    ],
     iter = iter,
     chains = chains,
     warmup = warmup,
