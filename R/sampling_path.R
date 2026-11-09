@@ -1626,15 +1626,12 @@ sampling_path_prepare_route_prior <- function(
     assertthat::assert_that(
       all(support_names %in% names(route_prior$support)),
       length(route_prior$support$duration_log) > 1L,
-      length(route_prior$support$duration_log) ==
-        length(route_prior$support$log_distance_lower),
-      length(route_prior$support$duration_log) ==
-        length(route_prior$support$log_distance_upper),
+      length(route_prior$support$duration_log) == length(route_prior$support$log_distance_lower),
+      length(route_prior$support$duration_log) == length(route_prior$support$log_distance_upper),
       all(is.finite(unlist(route_prior$support))),
       all(diff(route_prior$support$duration_log) > 0),
       all(
-        route_prior$support$log_distance_lower <=
-          route_prior$support$log_distance_upper
+        route_prior$support$log_distance_lower <= route_prior$support$log_distance_upper
       )
     )
   }

@@ -198,9 +198,7 @@ sampling_path_diagnostic <- function(
     })
   )
 
-  out$support <- if (
-    all(c("thr_likelihood", "thr_gs") %in% names(sampler_params))
-  ) {
+  out$support <- if (all(c("thr_likelihood", "thr_gs") %in% names(sampler_params))) {
     sampling_path_diagnostic_support(paths, tag)
   } else {
     NULL

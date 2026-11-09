@@ -11,5 +11,7 @@
 ^CITATION\.cff$
 ^README\.Rmd$
 ^GeoTwilightR\.Rproj$
-^codemeta\.json$
 ^LICENSE$
+^AGENTS\.md$
+^[.]?air[.]toml$
+^jarl\.toml$
