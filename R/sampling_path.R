@@ -1796,7 +1796,7 @@ sampling_path_route_log_prior <- function(
     support_covariates <- sampling_path_route_support_projection(
       route_prior$intervals$duration_days[interval_i],
       direct_distance,
-      route_prior$support %||% NULL
+      route_prior$support
     )
     linear_predictor <-
       route_prior$scale_intercept +
@@ -1806,7 +1806,7 @@ sampling_path_route_log_prior <- function(
         (support_covariates$distance_log - route_prior$distance_center)
     # Closed-form Gamma log density: much cheaper than stats::dgamma().
     scale <- pmax(
-      (route_prior$detour %||% 1) * exp(linear_predictor),
+      route_prior$detour * exp(linear_predictor),
       .Machine$double.eps
     )
     shape <- route_prior$gamma_shape
@@ -1816,12 +1816,10 @@ sampling_path_route_log_prior <- function(
       lgamma(shape) -
       shape * log(scale)
     log_density <- rep_len(log_density, length(route_excess))
-    log_density[!is.finite(log_density)] <- log(.Machine$double.xmin)
     out[apply_prior] <- out[apply_prior] + log_density[apply_prior]
   }
 
-  out[!is.finite(out)] <- 0
-  out * (route_prior$weight %||% 1)
+  out * route_prior$weight
 }
 
 #' Project Route-Prior Covariates onto Empirical Support
