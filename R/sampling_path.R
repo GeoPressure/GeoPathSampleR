@@ -1605,43 +1605,8 @@ sampling_path_prepare_route_prior <- function(
     return(NULL)
   }
 
-  parameter_names <- c(
-    "gamma_shape",
-    "scale_intercept",
-    "duration_coefficient",
-    "distance_coefficient",
-    "duration_center",
-    "distance_center"
-  )
-  assertthat::assert_that(
-    all(parameter_names %in% names(route_prior)),
-    all(is.finite(unlist(route_prior[parameter_names]))),
-    route_prior$gamma_shape > 0,
-    is.finite(weight),
-    weight > 0,
-    is.finite(detour),
-    detour >= 0
-  )
   route_prior$weight <- weight
   route_prior$detour <- detour
-  if (!is.null(route_prior$support)) {
-    support_names <- c(
-      "duration_log",
-      "log_distance_lower",
-      "log_distance_upper"
-    )
-    assertthat::assert_that(
-      all(support_names %in% names(route_prior$support)),
-      length(route_prior$support$duration_log) > 1L,
-      length(route_prior$support$duration_log) == length(route_prior$support$log_distance_lower),
-      length(route_prior$support$duration_log) == length(route_prior$support$log_distance_upper),
-      all(is.finite(unlist(route_prior$support))),
-      all(diff(route_prior$support$duration_log) > 0),
-      all(
-        route_prior$support$log_distance_lower <= route_prior$support$log_distance_upper
-      )
-    )
-  }
 
   stap_row <- match(stap_ids, tag$stap$stap_id)
   # TODO: Remove the stap0 fallback when legacy tags no longer need support.
