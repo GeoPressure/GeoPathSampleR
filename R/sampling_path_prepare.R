@@ -357,7 +357,7 @@ sampling_path_movement_log_norm <- function(
 
     source_idx <- support_by_row[[source_row_name]]
     norm <- norm_by_col[cell_col[source_idx]]
-    move_log_norm[source_idx] <- ifelse(norm > 0, log(norm), -Inf)
+    move_log_norm[source_idx] <- log(norm)
   }
 
   move_log_norm
