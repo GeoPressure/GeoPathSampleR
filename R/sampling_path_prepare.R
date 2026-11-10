@@ -113,7 +113,6 @@ sampling_path_prepare <- function(
   # Great-circle distances keep the hard movement support symmetric across rows.
   nrow <- g$dim[1]
   ncol <- g$dim[2]
-  sampling_path_movement_validate(movement)
   move_probability <- movement$move_stay(0:(length(lk) - 1L))
   if (
     !all(

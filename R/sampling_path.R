@@ -140,6 +140,7 @@ sampling_path_with_route_model <- function(
     route_detour >= 0
   )
   component_weights <- component_weights[c("light", "movement", "route")]
+  sampling_path_movement_validate(movement)
 
   chains <- as.integer(chains)
   if (is.infinite(block_interval)) {

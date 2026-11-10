@@ -116,10 +116,15 @@ sampling_path_diagnostic <- function(
   quiet = FALSE
 ) {
   time_start <- proc.time()[["elapsed"]]
+  stap <- tag$stap
+  assertthat::assert_that(
+    is.data.frame(paths),
+    all(c("j", "chain", "stap_id", "ind", "lat", "lon") %in% names(paths)),
+    all(c("stap_id", "start", "end", "known_lat", "known_lon") %in% names(stap))
+  )
   if (!quiet) {
     cli::cli_alert_info("Computing sampling diagnostics")
   }
-  stap <- tag$stap
   sampler_params <- attr(paths, "sampling_parameters") %||% list()
   stap_row <- match(unique(paths$stap_id), stap$stap_id)
   if (anyNA(stap_row) || nrow(stap) != length(stap_row)) {
@@ -234,21 +239,6 @@ sampling_path_diagnostic_compute <- function(
   spatial = TRUE,
   sample_summary = NULL
 ) {
-  assertthat::assert_that(is.data.frame(paths))
-  assertthat::assert_that(all(
-    c("j", "chain", "stap_id", "ind", "lat", "lon") %in% names(paths)
-  ))
-  assertthat::assert_that(all(
-    c(
-      "stap_id",
-      "start",
-      "end",
-      "known_lat",
-      "known_lon"
-    ) %in%
-      names(stap)
-  ))
-
   # TODO: Remove the stap0 fallback when legacy tags no longer need support.
   stap0 <- stap$stap_long %||% stap$stap0 %||% rep(FALSE, nrow(stap))
   sampled_stap <- stap[
