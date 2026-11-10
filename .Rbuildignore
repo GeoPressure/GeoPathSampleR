@@ -10,7 +10,7 @@
 ^\.DS_Store$
 ^CITATION\.cff$
 ^README\.Rmd$
-^GeoTwilightR\.Rproj$
+^GeoPathSampleR\.Rproj$
 ^LICENSE$
 ^AGENTS\.md$
 ^[.]?air[.]toml$
