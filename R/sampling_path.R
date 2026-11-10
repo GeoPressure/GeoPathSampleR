@@ -162,6 +162,16 @@ sampling_path_with_route_model <- function(
     ))
   }
 
+  # Long periods define the modular cut and the route prior, so they must be labelled.
+  # TODO: Remove the stap0 fallback when legacy tags no longer need support.
+  stap0 <- tag$stap$stap_long %||% tag$stap$stap0
+  if (is.null(stap0)) {
+    cli::cli_abort(c(
+      "{.field tag$stap} has no {.field stap_long} column identifying long stationary periods.",
+      "i" = "Create the stationary periods with {.fun GeoPressureR::tag_stap_daily}."
+    ))
+  }
+
   prep <- sampling_path_prepare(
     tag = tag,
     likelihood = likelihood,
@@ -176,10 +186,6 @@ sampling_path_with_route_model <- function(
   stap_ids <- vapply(lk, `[[`, numeric(1), "stap_id")
   nstap <- length(lk)
   stap_row <- match(stap_ids, tag$stap$stap_id)
-  # TODO: Remove the stap0 fallback when legacy tags no longer need support.
-  stap0 <- tag$stap$stap_long %||%
-    tag$stap$stap0 %||%
-    rep(FALSE, nrow(tag$stap))
   known_stap <- if (all(c("known_lat", "known_lon") %in% names(tag$stap))) {
     is.finite(tag$stap$known_lat[stap_row]) &
       is.finite(tag$stap$known_lon[stap_row])
@@ -465,8 +471,9 @@ sampling_path_with_route_model <- function(
 #' interval between consecutive long periods (`stap0`).
 #'
 #' @param tag GeoPressureR tag object containing likelihood maps and
-#'   `tag_set_map` parameters. Long periods are identified by `tag$stap$stap0`,
-#'   as created by [GeoPressureR::tag_stap_daily()]. All stationary periods must
+#'   `tag_set_map` parameters. Long periods are identified by the required
+#'   `tag$stap$stap_long` column (legacy `stap0`), as created by
+#'   [GeoPressureR::tag_stap_daily()]. All stationary periods must
 #'   be included; excluded periods cannot be bridged by daily transitions.
 #' @param iter number of Gibbs iterations per chain, including `warmup`.
 #' @param likelihood tag field containing the light likelihood map.
@@ -1638,9 +1645,7 @@ sampling_path_prepare_route_prior <- function(
 
   stap_row <- match(stap_ids, tag$stap$stap_id)
   # TODO: Remove the stap0 fallback when legacy tags no longer need support.
-  stap0 <- tag$stap$stap_long %||%
-    tag$stap$stap0 %||%
-    rep(FALSE, nrow(tag$stap))
+  stap0 <- tag$stap$stap_long %||% tag$stap$stap0
   long_period_i <- which(stap0[stap_row])
   if (length(long_period_i) < 2L) {
     return(NULL)

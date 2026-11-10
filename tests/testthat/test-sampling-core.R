@@ -452,3 +452,15 @@ test_that("default route model uses a compact direct-distance calibration suppor
   expect_length(route_model$support$log_distance_lower, 16)
   expect_length(route_model$support$log_distance_upper, 16)
 })
+
+test_that("sampling_path rejects a tag without labelled long periods", {
+  tag <- list(
+    stap = data.frame(
+      stap_id = 1:2,
+      start = as.POSIXct("2026-01-01", tz = "UTC") + 0:1 * 86400,
+      end = as.POSIXct("2026-01-02", tz = "UTC") + 0:1 * 86400
+    )
+  )
+
+  expect_error(sampling_path(tag, iter = 2, warmup = 1), "stap_long")
+})

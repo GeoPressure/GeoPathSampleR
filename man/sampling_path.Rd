@@ -27,8 +27,9 @@ sampling_path(
 }
 \arguments{
 \item{tag}{GeoPressureR tag object containing likelihood maps and
-\code{tag_set_map} parameters. Long periods are identified by \code{tag$stap$stap0},
-as created by \code{\link[GeoPressureR:tag_stap_daily]{GeoPressureR::tag_stap_daily()}}. All stationary periods must
+\code{tag_set_map} parameters. Long periods are identified by the required
+\code{tag$stap$stap_long} column (legacy \code{stap0}), as created by
+\code{\link[GeoPressureR:tag_stap_daily]{GeoPressureR::tag_stap_daily()}}. All stationary periods must
 be included; excluded periods cannot be bridged by daily transitions.}
 
 \item{iter}{number of Gibbs iterations per chain, including \code{warmup}.}
