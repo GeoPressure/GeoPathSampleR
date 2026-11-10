@@ -1,7 +1,10 @@
-# Development version
+# GeoPathSampleR (development version)
 
-- Recognise `stap_long` in sampling and diagnostic reports, with fallback to `stap0` for older tags.
-- Check tag consistency in sampling diagnostics and report unavailable convergence statistics without warnings.
+- [Recognise `stap_long` in sampling and diagnostic reports](https://github.com/GeoPressure/GeoPathSampleR/commit/52466bd), with fallback to `stap0` for older tags.
+- [Check tag consistency in sampling diagnostics and report unavailable convergence statistics without warnings](https://github.com/GeoPressure/GeoPathSampleR/commit/f056a2c).
+- [`sampling_path()` now errors when `tag$stap` has no `stap_long` (or `stap0`) column](https://github.com/GeoPressure/GeoPathSampleR/commit/cc0aeb4) instead of silently treating every period as daily, which disabled the modular cut and the route prior.
+- [`path_summary(by = "consensus_stay")` now errors when the draws in `paths` do not cover exactly the periods of `stap`](https://github.com/GeoPressure/GeoPathSampleR/commit/4e51720) instead of silently recycling them into wrong boundary probabilities and consensus stays.
+- [Validate the movement model before the likelihood maps are prepared, and stop masking non-finite route-prior terms](https://github.com/GeoPressure/GeoPathSampleR/commit/751ad2d) ([cf0e165](https://github.com/GeoPressure/GeoPathSampleR/commit/cf0e165)).
 
 # GeoPathSampleR v0.2.0
 
