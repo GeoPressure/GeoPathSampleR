@@ -24,6 +24,20 @@ test_that("path summaries retain stationary-period structure", {
   expect_equal(diagnostic_summary$n_unique_cells, rep(2L, 8L))
 })
 
+test_that("consensus summary rejects paths that do not cover stap", {
+  stap <- data.frame(
+    stap_id = 1:3,
+    start = as.POSIXct("2026-01-01", tz = "UTC") + 0:2 * 86400,
+    end = as.POSIXct("2026-01-02", tz = "UTC") + 0:2 * 86400
+  )
+  paths <- expand.grid(j = 1:3, stap_id = 1:2)
+  paths$ind <- 1L
+  paths$lat <- 45
+  paths$lon <- 5
+
+  expect_error(path_summary(paths, stap, by = "consensus_stay"))
+})
+
 test_that("diagnostics return marginal summaries without report rendering", {
   stap <- data.frame(
     stap_id = 1:2,

@@ -113,6 +113,11 @@ path_summary <- function(
   paths <- paths[order(path_id, paths$stap_id), , drop = FALSE]
   path_id <- interaction(paths$chain, paths$j, drop = TRUE)
   n_stap <- length(stap_id)
+  # Each draw must cover exactly the periods of stap, or matrix() would recycle.
+  stopifnot(
+    nrow(paths) == n_stap * nlevels(path_id),
+    all(paths$stap_id == rep(stap_id, nlevels(path_id)))
+  )
   ind <- matrix(paths$ind, nrow = n_stap)
   boundary_probability <- c(
     NA_real_,
